@@ -1,0 +1,13 @@
+{
+  "dependencies": [
+    {
+      "name": "curl",
+      "features": [
+        "openssl",
+        "http2",
+        "brotli",
+        "websockets"
+      ]
+    }
+  ]
+}
