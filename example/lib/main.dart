@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:flucurl/flucurl.dart' as flucurl;
-
 void main() {
   runApp(const MyApp());
 }
@@ -17,13 +15,6 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late int sumResult;
   late Future<int> sumAsyncResult;
-
-  @override
-  void initState() {
-    super.initState();
-    sumResult = flucurl.sum(1, 2);
-    sumAsyncResult = flucurl.sumAsync(3, 4);
-  }
 
   @override
   Widget build(BuildContext context) {

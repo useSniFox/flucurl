@@ -27,43 +27,73 @@ class FlucurlBindings {
           lookup)
       : _lookup = lookup;
 
-  /// A very short-lived native function.
-  ///
-  /// For very short-lived functions, it is fine to call them on the main isolate.
-  /// They will block the Dart execution while running the native function, so
-  /// only do this for native functions which are guaranteed to be short-lived.
-  int sum(
-    int a,
-    int b,
+  void init() {
+    return _init();
+  }
+
+  late final _initPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function()>>('init');
+  late final _init = _initPtr.asFunction<void Function()>();
+
+  void sendRequest(
+    ffi.Pointer<Request> request,
+    RequestCallback callback,
   ) {
-    return _sum(
-      a,
-      b,
+    return _sendRequest(
+      request,
+      callback,
     );
   }
 
-  late final _sumPtr =
-      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Int, ffi.Int)>>('sum');
-  late final _sum = _sumPtr.asFunction<int Function(int, int)>();
-
-  /// A longer lived native function, which occupies the thread calling it.
-  ///
-  /// Do not call these kind of native functions in the main isolate. They will
-  /// block Dart execution. This will cause dropped frames in Flutter applications.
-  /// Instead, call these native functions on a separate isolate.
-  int sum_long_running(
-    int a,
-    int b,
-  ) {
-    return _sum_long_running(
-      a,
-      b,
-    );
-  }
-
-  late final _sum_long_runningPtr =
-      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Int, ffi.Int)>>(
-          'sum_long_running');
-  late final _sum_long_running =
-      _sum_long_runningPtr.asFunction<int Function(int, int)>();
+  late final _sendRequestPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+              ffi.Pointer<Request>, RequestCallback)>>('sendRequest');
+  late final _sendRequest = _sendRequestPtr
+      .asFunction<void Function(ffi.Pointer<Request>, RequestCallback)>();
 }
+
+final class Field extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> key;
+
+  external ffi.Pointer<ffi.Char> value;
+}
+
+final class Request extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> url;
+
+  external ffi.Pointer<ffi.Char> method;
+
+  external ffi.Pointer<ffi.Char> data;
+
+  @ffi.Int()
+  external int contentLength;
+
+  external ffi.Pointer<Field> header;
+
+  @ffi.Int()
+  external int headerLength;
+}
+
+final class Response extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> url;
+
+  external ffi.Pointer<ffi.Char> method;
+
+  external ffi.Pointer<ffi.Char> data;
+
+  @ffi.Int()
+  external int contentLength;
+
+  external ffi.Pointer<Field> header;
+
+  @ffi.Int()
+  external int headerLength;
+}
+
+typedef RequestCallback
+    = ffi.Pointer<ffi.NativeFunction<RequestCallbackFunction>>;
+typedef RequestCallbackFunction = ffi.Void Function(
+    ffi.Pointer<Request>, ffi.Pointer<Response>);
+typedef DartRequestCallbackFunction = void Function(
+    ffi.Pointer<Request>, ffi.Pointer<Response>);

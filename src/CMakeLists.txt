@@ -3,10 +3,10 @@
 # the plugin to fail to compile for some customers of the plugin.
 cmake_minimum_required(VERSION 3.10)
 
-project(flucurl_library VERSION 0.0.1 LANGUAGES C)
+project(flucurl_library VERSION 0.0.1 LANGUAGES CXX)
 
 add_library(flucurl SHARED
-  "flucurl.c"
+  "flucurl.cpp"
 )
 
 set_target_properties(flucurl PROPERTIES
