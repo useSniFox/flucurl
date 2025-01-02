@@ -6,6 +6,10 @@
 #define FFI_PLUGIN_EXPORT
 #endif
 
+#define BOOL int
+#define TRUE 1
+#define FALSE 0
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -15,6 +19,7 @@ extern "C" {
   };
 
   struct Request {
+    int id;
     char* url;
     char* method;
     char* data;
@@ -26,17 +31,55 @@ extern "C" {
   struct Response {
     char* url;
     char* method;
-    char* data;
-    int contentLength;
     struct Field* header;
     int headerLength;
   };
 
-  typedef void (*RequestCallback)(struct Request*, struct Response*);
+  typedef char* (*DnsResolver)(const char* host);
+
+  struct Config {
+    /// Timeout in seconds.
+    int timeout;
+
+    /// Maximum number of redirects to follow.
+    int maxRedirect;
+
+    /// http or socks5 proxy, in the format of "http://host:port" or "socks5://host:port". Null for no proxy.
+    char* proxy;
+
+    /// DNS resolver function. If null or returns null, the system default resolver will be used.
+    DnsResolver* dnsResolver;
+
+    /// TLS configuration.
+    struct TlsConfig* tlsConfig;
+  };
+
+  struct TlsConfig {
+    /// Enable certificate verification.
+    BOOL verifyCertificates;
+
+    /// Enable TLS Server Name Indication (SNI).
+    BOOL sni;
+
+    /// The trusted root certificates in PEM format.
+    /// Either specify the root certificate or the full
+    /// certificate chain.
+    /// The Rust API currently doesn't support trusting a single leaf certificate.
+    /// Hint: PEM format starts with `-----BEGIN CERTIFICATE-----`.
+    const char** trustedRootCertificates;
+
+    int trustedRootCertificatesLength;
+  };
+
+  typedef void (*ResponseCallback)(int id, struct Response*);
+
+  typedef void (*DataHandler)(int id, const char* data, int length);
+
+  typedef void (*ErrorHandler)(int id, const char* message);
 
   FFI_PLUGIN_EXPORT void init();
 
-  FFI_PLUGIN_EXPORT void sendRequest(struct Request* request, RequestCallback callback);
+  FFI_PLUGIN_EXPORT void sendRequest(struct Config* config, struct Request* request, ResponseCallback callback, DataHandler onData, ErrorHandler onError);
 #ifdef __cplusplus
 }
 #endif
