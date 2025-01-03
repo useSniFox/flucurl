@@ -119,8 +119,7 @@ void sendRequest(Config *config, Request *request, ResponseCallback callback,
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, body);
 
-  std::string url = "http://example.com";
-  CURLcode ret = curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  CURLcode ret = curl_easy_setopt(curl, CURLOPT_URL, request->url);
   if (ret != CURLE_OK) {
     onError("Unable to set URL");
     return;
