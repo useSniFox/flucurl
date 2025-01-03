@@ -13,9 +13,8 @@ abstract class Flucurl {
 class FlucurlAdapter implements HttpClientAdapter {
   late final FlucurlClient client;
 
-  FlucurlAdapter({FlucurlConfig config = const FlucurlConfig(), BaseOptions? options}) {
+  FlucurlAdapter({FlucurlConfig config = const FlucurlConfig()}) {
     client = FlucurlClient(config: config);
-    options = options ?? BaseOptions();
   }
 
   @override
@@ -41,7 +40,8 @@ class FlucurlAdapter implements HttpClientAdapter {
 }
 
 class FlucurlDio with DioMixin {
-  FlucurlDio({FlucurlConfig config = const FlucurlConfig()}) {
+  FlucurlDio({FlucurlConfig config = const FlucurlConfig(), BaseOptions? options}) {
     httpClientAdapter = FlucurlAdapter(config: config);
+    options = options ?? BaseOptions();
   }
 }
