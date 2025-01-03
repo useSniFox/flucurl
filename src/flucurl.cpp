@@ -7,11 +7,13 @@
 #include <format>
 #include <iostream>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "build/vcpkg_installed/x64-windows/include/curl/curl.h"
 #include "build/vcpkg_installed/x64-windows/include/curl/easy.h"
+#include "build/vcpkg_installed/x64-windows/include/curl/urlapi.h"
 
 using namespace std::chrono;
 void init() {
@@ -56,17 +58,12 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   auto *header_data = static_cast<HeaderCallbackData *>(userdata);
 
   size_t total_size = size * nmemb;
-  auto *header_line = reinterpret_cast<char *>(ptr);
+  auto *header_line = static_cast<char *>(ptr);
   if (total_size < 2 || strncmp(header_line, "\r\n", 2) == 0) {
     auto *header = new Field[header_data->entries.size()];
-
     std::copy(header_data->entries.begin(), header_data->entries.end(), header);
     header_data->response->header = header;
     header_data->response->headerLength = header_data->entries.size();
-    header_data->response->status = 200;
-    header_data->response->url = nullptr;
-    header_data->response->httpVersion = nullptr;
-    header_data->response->method = nullptr;
     // header finish
     header_data->callback(header_data->response);
     std::cout << "Header Finished" << std::endl;
@@ -74,6 +71,16 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   }
   if (!header_data->first_line) {
     header_data->first_line = header_line;
+    std::cout << header_line << std::endl;
+    std::istringstream sin(header_line);
+    std::string httpVersion;
+    int status_code;
+    sin >> httpVersion >> status_code;
+    auto *httpVersionString = new char[httpVersion.size()];
+    std::cout << httpVersion << status_code << std::endl;
+    std::copy(httpVersion.begin(), httpVersion.end(), httpVersionString);
+    header_data->response->status = status_code;
+    header_data->response->httpVersion = httpVersionString;
     return total_size;
   }
 
@@ -98,7 +105,6 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
 
 void sendRequest(Config *config, Request *request, ResponseCallback callback,
                  DataHandler onData, ErrorHandler onError) {
-  std::cout << "send Request" << std::endl;
   CURL *curl = curl_easy_init();
   if (curl == nullptr) {
     onError("Unable to initialize curl");
@@ -119,6 +125,10 @@ void sendRequest(Config *config, Request *request, ResponseCallback callback,
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, body);
 
+  curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+  curl_easy_setopt(curl, CURLOPT_SSLENGINE, "dynamic");
+  curl_easy_setopt(curl, CURLOPT_SSLENGINE_DEFAULT, 1l);
+
   CURLcode ret = curl_easy_setopt(curl, CURLOPT_URL, request->url);
   if (ret != CURLE_OK) {
     onError("Unable to set URL");
@@ -135,8 +145,9 @@ void sendRequest(Config *config, Request *request, ResponseCallback callback,
   if (ret != CURLE_OK) {
     fprintf(stderr, "curl_easy_perform() failed: %s\n",
             curl_easy_strerror(ret));
-  } else {
+    onError(curl_easy_strerror(ret));
   }
+  curl_easy_cleanup(curl);
 }
 
 void flucurl_free_reponse(Response *p) {
@@ -145,6 +156,7 @@ void flucurl_free_reponse(Response *p) {
     delete[] p->header[i].value;
   }
   delete[] p->header;
+  delete[] p->httpVersion;
   delete p;
 }
 void flucurl_free_bodydata(const char *p) { delete[] p; }

@@ -26,8 +26,6 @@ typedef struct Request {
 typedef struct Response {
   const char *httpVersion;
   int status;
-  const char *url;
-  const char *method;
   Field *header;
   int headerLength;
 } Response;
