@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.14)
 message(INFO " ${CMAKE_CXX_COMPILER}")
 execute_process(
-  COMMAND dart.bat run src/build.dart windows 
+  COMMAND dart.bat run src/build.dart windows ${CMAKE_CXX_COMPILER} ${CMAKE_GENERATOR}
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
   OUTPUT_VARIABLE output
   RESULT_VARIABLE result
@@ -18,12 +18,16 @@ endif()
 set(PROJECT_NAME "flucurl")
 project(${PROJECT_NAME} LANGUAGES CXX)
 
+set(BUILD_TYPE "Release")
+
 # List of absolute paths to libraries that should be bundled with the plugin.
 # This list could contain prebuilt libraries, or libraries created by an
 # external build triggered from this build file.
 set(flucurl_bundled_libraries
   # Defined in ../src/CMakeLists.txt.
   # This can be changed to accommodate different builds.
-  "${CMAKE_CURRENT_SOURCE_DIR}/../src/build/libflucurl.dll"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../src/build/${BUILD_TYPE}/flucurl.dll"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../src/build/${BUILD_TYPE}/libcurl.dll"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../src/build/${BUILD_TYPE}/zlib1.dll"
   PARENT_SCOPE
 )
