@@ -15,7 +15,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  var url = '';
+  var url = 'http://example.com';
 
   Response? response;
 
@@ -42,6 +42,7 @@ class _MyAppState extends State<MyApp> {
                     url = value;
                   });
                 },
+                controller: TextEditingController(text: url),
               ),
               const SizedBox(height: 16),
               Align(

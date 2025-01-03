@@ -24,10 +24,10 @@ typedef struct Request {
 } Request;
 
 typedef struct Response {
-  char *httpVersion;
+  const char *httpVersion;
   int status;
-  char *url;
-  char *method;
+  const char *url;
+  const char *method;
   Field *header;
   int headerLength;
 } Response;
@@ -55,9 +55,6 @@ typedef struct Config {
   /// Timeout in seconds.
   int timeout;
 
-  /// Maximum number of redirects to follow.
-  int maxRedirect;
-
   /// http or socks5 proxy, in the format of "http://host:port" or
   /// "socks5://host:port". Null for no proxy.
   char *proxy;
@@ -77,7 +74,7 @@ typedef struct BodyData {
 
 typedef void (*ResponseCallback)(Response *);
 
-typedef void (*DataHandler)(const BodyData *, int length);
+typedef void (*DataHandler)(const BodyData);
 
 typedef void (*ErrorHandler)(const char *message);
 
