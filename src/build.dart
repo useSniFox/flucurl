@@ -10,7 +10,7 @@ void main(List<String> args) {
   platform = args[0];
   Directory.current = 'src';
   findVcpkg();
-  var result = Process.runSync('cmake', ["--preset=default"]);
+  var result = Process.runSync('cmake', ["--preset=default", "-G Visual Studio 17 2022"]);
   if (result.exitCode != 0) {
     print(result.stderr);
     exit(result.exitCode);
@@ -20,6 +20,7 @@ void main(List<String> args) {
     print(result.stderr);
     exit(result.exitCode);
   }
+  findDll();
 }
 
 void findVcpkg() {
@@ -53,4 +54,11 @@ void findVcpkg() {
 }
 ''';
   File('CMakeUserPresets.json').writeAsStringSync(content);
+}
+
+void findDll() {
+  var file = File('build/flucurl.dll');
+  if (file.existsSync()) {
+    file.copySync('build/libflucurl.dll');
+  }
 }
