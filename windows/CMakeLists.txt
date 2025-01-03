@@ -3,7 +3,7 @@
 # version, as doing so will cause the plugin to fail to compile for some
 # customers of the plugin.
 cmake_minimum_required(VERSION 3.14)
-message(INFO " ${CMAKE_CXX_COMPILER}")
+
 execute_process(
   COMMAND dart.bat run src/build.dart windows ${CMAKE_CXX_COMPILER} ${CMAKE_GENERATOR} ${CMAKE_COMMAND}
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
