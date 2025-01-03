@@ -52,6 +52,7 @@ class FlucurlClient {
         var value = field.ref.value.cast<Utf8>().toDartString();
         headers.putIfAbsent(key, () => []).add(value);
       }
+      bindings.flucurl_free_reponse(response);
       completer.complete(Response(
         url: url,
         method: method,

@@ -40,8 +40,8 @@ class FlucurlAdapter implements HttpClientAdapter {
 }
 
 class FlucurlDio with DioMixin {
-  FlucurlDio({FlucurlConfig config = const FlucurlConfig(), BaseOptions? options}) {
+  FlucurlDio({FlucurlConfig config = const FlucurlConfig(), BaseOptions? baseOptions}) {
     httpClientAdapter = FlucurlAdapter(config: config);
-    options = options ?? BaseOptions();
+    options = baseOptions ?? BaseOptions();
   }
 }
