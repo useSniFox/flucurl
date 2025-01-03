@@ -12,12 +12,13 @@ void main(List<String> args) {
   findVcpkg();
   var compiler = args[1];
   var generator = args[2];
-  var result = Process.runSync('cmake', ["--preset=default", "-DCMAKE_CXX_COMPILER=$compiler", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_PROGRAMS=OFF", "-G", generator]);
+  var cmakeRoot = args[3];
+  var result = Process.runSync(cmakeRoot, ["--preset=default", "-DCMAKE_CXX_COMPILER=$compiler", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_PROGRAMS=OFF", "-G", generator]);
   if (result.exitCode != 0) {
     print(result.stderr);
     exit(result.exitCode);
   }
-  result = Process.runSync('cmake', ["--build", "build", "--config Release"]);
+  result = Process.runSync(cmakeRoot, ["--build", "build", "--config Release"]);
   if (result.exitCode != 0) {
     print(result.stderr);
     exit(result.exitCode);

@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.14)
 message(INFO " ${CMAKE_CXX_COMPILER}")
 execute_process(
-  COMMAND dart.bat run src/build.dart windows ${CMAKE_CXX_COMPILER} ${CMAKE_GENERATOR}
+  COMMAND dart.bat run src/build.dart windows ${CMAKE_CXX_COMPILER} ${CMAKE_GENERATOR} ${CMAKE_COMMAND}
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
   OUTPUT_VARIABLE output
   RESULT_VARIABLE result

@@ -5,7 +5,6 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_ENABLE_EXPORTS ON)
 set(CMAKE_ENABLE_DEBUG_INFO ON)
-set(CMAKE_TOOLCHAIN_FILE "C:/dev/vcpkg/scripts/buildsystems/vcpkg.cmake")
 
 project(flucurl_library VERSION 0.0.1 LANGUAGES CXX)
 
