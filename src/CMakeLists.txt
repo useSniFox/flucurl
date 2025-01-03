@@ -9,7 +9,6 @@ set(CMAKE_ENABLE_DEBUG_INFO ON)
 project(flucurl_library VERSION 0.0.1 LANGUAGES CXX)
 
 find_package(CURL REQUIRED)
-
 add_library(flucurl SHARED
   "flucurl.cpp"
 )

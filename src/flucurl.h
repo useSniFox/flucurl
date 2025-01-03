@@ -9,12 +9,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-struct Field {
+typedef struct Field {
   char *key;
   char *value;
-};
+} Field;
 
-struct Request {
+typedef struct Request {
   int id;
   char *url;
   char *method;
@@ -22,18 +22,35 @@ struct Request {
   int contentLength;
   struct Field *header;
   int headerLength;
-};
+} Request;
 
-struct Response {
+typedef struct Response {
   char *url;
   char *method;
   struct Field *header;
   int headerLength;
-};
+} Response;
 
 typedef char *(*DnsResolver)(const char *host);
 
-struct Config {
+typedef struct TlsConfig {
+  /// Enable certificate verification.
+  int verifyCertificates;
+
+  /// Enable TLS Server Name Indication (SNI).
+  int sni;
+
+  /// The trusted root certificates in PEM format.
+  /// Either specify the root certificate or the full
+  /// certificate chain.
+  /// The Rust API currently doesn't support trusting a single leaf certificate.
+  /// Hint: PEM format starts with `-----BEGIN CERTIFICATE-----`.
+  const char **trustedRootCertificates;
+
+  int trustedRootCertificatesLength;
+} TlsConfig;
+
+typedef struct Config {
   /// Timeout in seconds.
   int timeout;
 
@@ -49,27 +66,10 @@ struct Config {
   DnsResolver *dnsResolver;
 
   /// TLS configuration.
-  struct TlsConfig *tlsConfig;
-};
+  TlsConfig *tlsConfig;
+} Config;
 
-struct TlsConfig {
-  /// Enable certificate verification.
-  int verifyCertificates;
-
-  /// Enable TLS Server Name Indication (SNI).
-  int sni;
-
-  /// The trusted root certificates in PEM format.
-  /// Either specify the root certificate or the full
-  /// certificate chain.
-  /// The Rust API currently doesn't support trusting a single leaf certificate.
-  /// Hint: PEM format starts with `-----BEGIN CERTIFICATE-----`.
-  const char **trustedRootCertificates;
-
-  int trustedRootCertificatesLength;
-};
-
-typedef void (*ResponseCallback)(int id, struct Response *);
+typedef void (*ResponseCallback)(int id, Response *);
 
 typedef void (*DataHandler)(int id, const char *data, int length);
 
@@ -77,8 +77,7 @@ typedef void (*ErrorHandler)(int id, const char *message);
 
 FFI_PLUGIN_EXPORT void init();
 
-FFI_PLUGIN_EXPORT void sendRequest(struct Config *config,
-                                   struct Request *request,
+FFI_PLUGIN_EXPORT void sendRequest(Config *config, Request *request,
                                    ResponseCallback callback,
                                    DataHandler onData, ErrorHandler onError);
 #ifdef __cplusplus
