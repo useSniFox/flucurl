@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ffi' as ffi;
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 import 'package:flucurl/src/binding.dart';
@@ -21,7 +22,15 @@ class FlucurlClient {
     var nativeConfig = _cachedNativeConfig!;
     var nativeRequest = NativeRequest(request);
     var completer = Completer<Response>();
-    var bodyStreamController = StreamController<List<int>>();
+    var bodyStreamController = StreamController<Uint8List>();
+
+    if (request.body is Stream<List<int>> || request.body is Stream<Uint8List>) {
+      var data = <int>[];
+      await for (var chunk in request.body as Stream<List<int>>) {
+        data.addAll(chunk);
+      }
+      request = request.copyWith(body: data);
+    }
 
     var nativeFunctions = <ffi.NativeCallable>[];
 
@@ -58,7 +67,7 @@ class FlucurlClient {
         clear();
         return;
       }
-      var view = data.ref.data.cast<ffi.Int8>().asTypedList(data.ref.size, finalizer: nativeFreeBodyDataFunction.cast());
+      var view = data.ref.data.cast<ffi.Uint8>().asTypedList(data.ref.size, finalizer: nativeFreeBodyDataFunction.cast());
       bodyStreamController.add(view);
     }
 

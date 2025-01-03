@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class FlucurlConfig {
   final int timeout;
 
@@ -44,6 +46,20 @@ class Request {
     this.headers = const {},
     this.body,
   });
+
+  Request copyWith({
+    String? url,
+    String? method,
+    Map<String, String>? headers,
+    Object? body,
+  }) {
+    return Request(
+      url: url ?? this.url,
+      method: method ?? this.method,
+      headers: headers ?? this.headers,
+      body: body ?? this.body,
+    );
+  }
 }
 
 class Response {
@@ -55,7 +71,7 @@ class Response {
 
   final Map<String, List<String>> headers;
 
-  final Stream<List<int>> body;
+  final Stream<Uint8List> body;
 
   Response({
     required this.url,
