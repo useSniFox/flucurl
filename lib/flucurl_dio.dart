@@ -13,8 +13,9 @@ abstract class Flucurl {
 class FlucurlAdapter implements HttpClientAdapter {
   late final FlucurlClient client;
 
-  FlucurlAdapter({FlucurlConfig config = const FlucurlConfig()}) {
+  FlucurlAdapter({FlucurlConfig config = const FlucurlConfig(), BaseOptions? options}) {
     client = FlucurlClient(config: config);
+    options = options ?? BaseOptions();
   }
 
   @override
