@@ -92,15 +92,19 @@ class _MyAppState extends State<MyApp> {
     if (response == null) {
       return const SizedBox();
     } else {
-      return Column(
-        children: [
-          Text("Status Code: ${response!.statusCode}"),
-          Text("Headers:"),
-          for (var entry in response!.headers.map.entries)
-            Text("${entry.key}: ${entry.value}"),
-          Text("Body:"),
-          Text(response!.data.toString()),
-        ],
+      return SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Status Code: ${response!.statusCode}"),
+            Text("Headers:"),
+            for (var entry in response!.headers.map.entries)
+              Text("${entry.key}: ${entry.value}"),
+            Text("Body:"),
+            Text(response!.data.toString()),
+          ],
+        ),
       );
     }
   }
