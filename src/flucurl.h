@@ -15,7 +15,6 @@ typedef struct Field {
 } Field;
 
 typedef struct Request {
-  int id;
   char *url;
   char *method;
   char *data;
@@ -25,6 +24,8 @@ typedef struct Request {
 } Request;
 
 typedef struct Response {
+  char *httpVersion;
+  int status;
   char *url;
   char *method;
   Field *header;
@@ -69,16 +70,25 @@ typedef struct Config {
   TlsConfig *tlsConfig;
 } Config;
 
-typedef void (*ResponseCallback)(int id, Response *);
+typedef struct BodyData {
+  const char *data;
+  int size;
+} BodyData;
 
-typedef void (*DataHandler)(int id, const char *data, int length);
+typedef void (*ResponseCallback)(Response *);
 
-typedef void (*ErrorHandler)(int id, const char *message);
+typedef void (*DataHandler)(const BodyData *, int length);
+
+typedef void (*ErrorHandler)(const char *message);
 
 FFI_PLUGIN_EXPORT void init();
 
+FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response *);
+FFI_PLUGIN_EXPORT void flucurl_free_bodydata(BodyData *);
+
 FFI_PLUGIN_EXPORT void sendRequest(Config *config, Request *request,
                                    ResponseCallback callback,
+
                                    DataHandler onData, ErrorHandler onError);
 #ifdef __cplusplus
 }

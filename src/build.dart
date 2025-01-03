@@ -13,6 +13,7 @@ void main(List<String> args) {
   var compiler = args[1];
   var generator = args[2];
   var cmakeRoot = args[3];
+  print(["--preset=default", "-DCMAKE_CXX_COMPILER=$compiler", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_PROGRAMS=OFF", "-G", generator]);
   var result = Process.runSync(cmakeRoot, ["--preset=default", "-DCMAKE_CXX_COMPILER=$compiler", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_PROGRAMS=OFF", "-G", generator]);
   if (result.exitCode != 0) {
     print(result.stderr);
