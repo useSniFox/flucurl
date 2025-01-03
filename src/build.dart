@@ -4,24 +4,36 @@ late String platform;
 
 void main(List<String> args) {
   if (args.isEmpty) {
-    print('Usage: dart build.dart <platform>');
+    print('Usage: dart build.dart <platform> <compiler> <generator> <cmake>');
     exit(1);
   }
   platform = args[0];
   Directory.current = 'src';
-  findVcpkg();
   var compiler = args[1];
   var generator = args[2];
   var cmakeRoot = args[3];
-  var result = Process.runSync(cmakeRoot, ["--preset=default", "-DCMAKE_CXX_COMPILER=$compiler", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_PROGRAMS=OFF", "-G", generator]);
-  if (result.exitCode != 0) {
-    print(result.stderr);
-    exit(result.exitCode);
+  var buildDir = Directory('build');
+  if (buildDir.existsSync()) {
+    buildDir.deleteSync(recursive: true);
   }
-  result = Process.runSync(cmakeRoot, ["--build", "build", "--config Release"]);
-  if (result.exitCode != 0) {
-    print(result.stderr);
-    exit(result.exitCode);
+  if (platform == "windows") {
+    findVcpkg();
+    var result = Process.runSync(cmakeRoot, ["--preset=default", "-DCMAKE_CXX_COMPILER=$compiler", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_PROGRAMS=OFF", "-G", generator]);
+    stdout.writeln(result.stdout);
+    if (result.exitCode != 0) {
+      stderr.writeln(result.stderr);
+      exit(result.exitCode);
+    }
+    result = Process.runSync(cmakeRoot, ["--build", "build", "--config Release"]);
+    stdout.writeln(result.stdout);
+    if (result.exitCode != 0) {
+      stderr.writeln(result.stderr);
+      exit(result.exitCode);
+    }
+  } else if (platform == "linux") {
+    // TODO
+  } else {
+    throw 'Unsupported platform: $platform';
   }
 }
 
