@@ -50,5 +50,21 @@ class Request {
 }
 
 class Response {
-  
+  final String url;
+
+  final String method;
+
+  final int statusCode;
+
+  final Map<String, List<String>> headers;
+
+  final Stream<List<int>> body;
+
+  Response({
+    required this.url,
+    required this.method,
+    required this.statusCode,
+    required this.headers,
+    required this.body,
+  });
 }

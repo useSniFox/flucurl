@@ -35,6 +35,34 @@ class FlucurlBindings {
       _lookup<ffi.NativeFunction<ffi.Void Function()>>('init');
   late final _init = _initPtr.asFunction<void Function()>();
 
+  void flucurl_free_reponse(
+    ffi.Pointer<Response> response,
+  ) {
+    return _flucurl_free_reponse(
+      response,
+    );
+  }
+
+  late final _flucurl_free_reponsePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<Response>)>>(
+          'flucurl_free_reponse');
+  late final _flucurl_free_reponse = _flucurl_free_reponsePtr
+      .asFunction<void Function(ffi.Pointer<Response>)>();
+
+  void flucurl_free_bodydata(
+    ffi.Pointer<BodyData> bodyData,
+  ) {
+    return _flucurl_free_bodydata(
+      bodyData,
+    );
+  }
+
+  late final _flucurl_free_bodydataPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<BodyData>)>>(
+          'flucurl_free_bodydata');
+  late final _flucurl_free_bodydata = _flucurl_free_bodydataPtr
+      .asFunction<void Function(ffi.Pointer<BodyData>)>();
+
   void sendRequest(
     ffi.Pointer<Config> config,
     ffi.Pointer<Request> request,
@@ -67,9 +95,6 @@ final class Field extends ffi.Struct {
 }
 
 final class Request extends ffi.Struct {
-  @ffi.Int()
-  external int id;
-
   external ffi.Pointer<ffi.Char> url;
 
   external ffi.Pointer<ffi.Char> method;
@@ -86,6 +111,11 @@ final class Request extends ffi.Struct {
 }
 
 final class Response extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> httpVersion;
+
+  @ffi.Int()
+  external int status;
+
   external ffi.Pointer<ffi.Char> url;
 
   external ffi.Pointer<ffi.Char> method;
@@ -95,29 +125,6 @@ final class Response extends ffi.Struct {
   @ffi.Int()
   external int headerLength;
 }
-
-final class Config extends ffi.Struct {
-  /// Timeout in seconds.
-  @ffi.Int()
-  external int timeout;
-
-  /// Maximum number of redirects to follow.
-  @ffi.Int()
-  external int maxRedirect;
-
-  /// http or socks5 proxy, in the format of "http://host:port" or "socks5://host:port". Null for no proxy.
-  external ffi.Pointer<ffi.Char> proxy;
-
-  /// DNS resolver function. If null or returns null, the system default resolver will be used.
-  external ffi.Pointer<DnsResolver> dnsResolver;
-
-  /// TLS configuration.
-  external ffi.Pointer<TlsConfig> tlsConfig;
-}
-
-typedef DnsResolver = ffi.Pointer<ffi.NativeFunction<DnsResolverFunction>>;
-typedef DnsResolverFunction = ffi.Pointer<ffi.Char> Function(
-    ffi.Pointer<ffi.Char> host);
 
 final class TlsConfig extends ffi.Struct {
   /// Enable certificate verification.
@@ -139,23 +146,45 @@ final class TlsConfig extends ffi.Struct {
   external int trustedRootCertificatesLength;
 }
 
+final class Config extends ffi.Struct {
+  /// Timeout in seconds.
+  @ffi.Int()
+  external int timeout;
+
+  /// Maximum number of redirects to follow.
+  @ffi.Int()
+  external int maxRedirect;
+
+  /// http or socks5 proxy, in the format of "http://host:port" or
+  /// "socks5://host:port". Null for no proxy.
+  external ffi.Pointer<ffi.Char> proxy;
+
+  /// DNS resolver function. If null or returns null, the system default
+  /// resolver will be used.
+  external ffi.Pointer<DnsResolver> dnsResolver;
+
+  /// TLS configuration.
+  external ffi.Pointer<TlsConfig> tlsConfig;
+}
+
+typedef DnsResolver = ffi.Pointer<ffi.NativeFunction<DnsResolverFunction>>;
+typedef DnsResolverFunction = ffi.Pointer<ffi.Char> Function(
+    ffi.Pointer<ffi.Char> host);
+
+final class BodyData extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> data;
+
+  @ffi.Int()
+  external int size;
+}
+
 typedef ResponseCallback
     = ffi.Pointer<ffi.NativeFunction<ResponseCallbackFunction>>;
-typedef ResponseCallbackFunction = ffi.Void Function(
-    ffi.Int, ffi.Pointer<Response>);
-typedef DartResponseCallbackFunction = void Function(
-    int, ffi.Pointer<Response>);
+typedef ResponseCallbackFunction = ffi.Void Function(ffi.Pointer<Response>);
+typedef DartResponseCallbackFunction = void Function(ffi.Pointer<Response>);
 typedef DataHandler = ffi.Pointer<ffi.NativeFunction<DataHandlerFunction>>;
-typedef DataHandlerFunction = ffi.Void Function(
-    ffi.Int id, ffi.Pointer<ffi.Char> data, ffi.Int length);
-typedef DartDataHandlerFunction = void Function(
-    int id, ffi.Pointer<ffi.Char> data, int length);
+typedef DataHandlerFunction = ffi.Void Function(ffi.Pointer<BodyData>);
+typedef DartDataHandlerFunction = void Function(ffi.Pointer<BodyData>, int);
 typedef ErrorHandler = ffi.Pointer<ffi.NativeFunction<ErrorHandlerFunction>>;
-typedef ErrorHandlerFunction = ffi.Void Function(
-    ffi.Int id, ffi.Pointer<ffi.Char> message);
-typedef DartErrorHandlerFunction = void Function(
-    int id, ffi.Pointer<ffi.Char> message);
-
-const int TRUE = 1;
-
-const int FALSE = 0;
+typedef ErrorHandlerFunction = ffi.Void Function(ffi.Pointer<ffi.Char> message);
+typedef DartErrorHandlerFunction = void Function(ffi.Pointer<ffi.Char> message);
