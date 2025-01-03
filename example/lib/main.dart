@@ -38,9 +38,7 @@ class _MyAppState extends State<MyApp> {
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) {
-                  setState(() {
-                    url = value;
-                  });
+                  url = value;
                 },
                 controller: TextEditingController(text: url),
               ),

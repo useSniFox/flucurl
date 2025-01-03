@@ -38,6 +38,7 @@ class FlucurlClient {
       for (var function in nativeFunctions) {
         function.close();
       }
+      nativeRequest.free();
     }
 
     void onResponse(ffi.Pointer<generated.Response> response) {
@@ -62,13 +63,13 @@ class FlucurlClient {
       ));
     }
 
-    void onData(ffi.Pointer<generated.BodyData> data) {
-      if (data == ffi.nullptr) {
+    void onData(generated.BodyData data) {
+      if (data.data == ffi.nullptr) {
         bodyStreamController.close();
         clear();
         return;
       }
-      var view = data.ref.data.cast<ffi.Uint8>().asTypedList(data.ref.size, finalizer: nativeFreeBodyDataFunction.cast());
+      var view = data.data.cast<ffi.Uint8>().asTypedList(data.size, finalizer: nativeFreeBodyDataFunction.cast());
       bodyStreamController.add(view);
     }
 
