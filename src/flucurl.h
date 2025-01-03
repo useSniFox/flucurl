@@ -81,7 +81,7 @@ typedef void (*ErrorHandler)(const char *message);
 FFI_PLUGIN_EXPORT void init();
 
 FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response *);
-FFI_PLUGIN_EXPORT void flucurl_free_bodydata(BodyData *);
+FFI_PLUGIN_EXPORT void flucurl_free_bodydata(const char *);
 
 FFI_PLUGIN_EXPORT void sendRequest(Config *config, Request *request,
                                    ResponseCallback callback,
