@@ -1,4 +1,5 @@
-import 'package:flucurl/flucurl.dart';
+import 'package:dio/dio.dart';
+import 'package:flucurl/flucurl_dio.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -14,6 +15,12 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  var url = '';
+
+  Response? response;
+
+  bool loading = false;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -21,11 +28,75 @@ class _MyAppState extends State<MyApp> {
         appBar: AppBar(
           title: const Text('Native Packages'),
         ),
-        body: FilledButton(onPressed: (){
-          print('clicked');
-          Flucurl().test();
-        }, child: Text('send request')),
+        body: Padding(
+          padding: EdgeInsets.all(8),
+          child: Column(
+            children: [
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'URL',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    url = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton(
+                  onPressed: () async {
+                    if (url.isEmpty || loading) {
+                      return;
+                    }
+                    setState(() {
+                      loading = true;
+                    });
+                    var dio = FlucurlDio();
+                    response = await dio.get(url);
+                    setState(() {
+                      loading = false;
+                    });
+                  },
+                  child: loading
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(),
+                        )
+                      : Text('Send Request'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                  ),
+                  child: SingleChildScrollView(
+                    child: buildResponse(),
+                  ),
+                ),
+              )
+            ],
+          ),
+        ),
       ),
     );
+  }
+
+  Widget buildResponse() {
+    if (response == null) {
+      return const SizedBox();
+    } else {
+      return Column(
+        children: [
+          Text("Status Code: ${response!.statusCode}"),
+        ],
+      );
+    }
   }
 }

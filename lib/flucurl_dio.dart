@@ -1,6 +1,14 @@
 import 'dart:typed_data';
+import 'package:flucurl/src/binding.dart';
+
 import 'flucurl.dart';
 import 'package:dio/dio.dart';
+
+abstract class Flucurl {
+  static init() {
+    bindings.init();
+  }
+}
 
 class FlucurlAdapter implements HttpClientAdapter {
   late final FlucurlClient client;
@@ -28,5 +36,11 @@ class FlucurlAdapter implements HttpClientAdapter {
       response.statusCode,
       headers: response.headers,
     );
+  }
+}
+
+class FlucurlDio with DioMixin {
+  FlucurlDio({FlucurlConfig config = const FlucurlConfig()}) {
+    httpClientAdapter = FlucurlAdapter(config: config);
   }
 }
