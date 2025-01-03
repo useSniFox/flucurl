@@ -3,6 +3,8 @@
 # the plugin to fail to compile for some customers of the plugin.
 cmake_minimum_required(VERSION 3.10)
 
+set(CMAKE_TOOLCHAIN_FILE "C:/dev/vcpkg/scripts/buildsystems/vcpkg.cmake")
+
 project(flucurl_library VERSION 0.0.1 LANGUAGES CXX)
 
 find_package(CURL REQUIRED)

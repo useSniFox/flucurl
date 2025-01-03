@@ -1,6 +1,8 @@
+import 'package:flucurl/flucurl.dart';
 import 'package:flutter/material.dart';
 
 void main() {
+  Flucurl.init();
   runApp(const MyApp());
 }
 
