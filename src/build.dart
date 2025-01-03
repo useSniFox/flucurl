@@ -10,8 +10,16 @@ void main(List<String> args) {
   platform = args[0];
   Directory.current = 'src';
   findVcpkg();
-  Process.runSync('cmake', ["--preset=default"]);
-  Process.runSync('cmake', ["--build", "build"]);
+  var result = Process.runSync('cmake', ["--preset=default"]);
+  if (result.exitCode != 0) {
+    print(result.stderr);
+    exit(result.exitCode);
+  }
+  result = Process.runSync('cmake', ["--build", "build"]);
+  if (result.exitCode != 0) {
+    print(result.stderr);
+    exit(result.exitCode);
+  }
 }
 
 void findVcpkg() {
@@ -29,6 +37,7 @@ void findVcpkg() {
   if (vcpkgRoot == null) {
     throw 'VCPKG_ROOT not found';
   }
+  vcpkgRoot = vcpkgRoot.replaceAll(Platform.pathSeparator, '/');
   var content = '''
 {
     "version": 2,
@@ -37,7 +46,7 @@ void findVcpkg() {
             "name": "default",
             "inherits": "vcpkg",
             "environment": {
-                "VCPKG_ROOT": $vcpkgRoot
+                "VCPKG_ROOT": "$vcpkgRoot"
             }
         }
     ]
