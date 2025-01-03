@@ -20,14 +20,14 @@ typedef struct Request {
   char *method;
   char *data;
   int contentLength;
-  struct Field *header;
+  Field *header;
   int headerLength;
 } Request;
 
 typedef struct Response {
   char *url;
   char *method;
-  struct Field *header;
+  Field *header;
   int headerLength;
 } Response;
 

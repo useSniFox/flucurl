@@ -21,7 +21,10 @@ class _MyAppState extends State<MyApp> {
         appBar: AppBar(
           title: const Text('Native Packages'),
         ),
-        body: const SizedBox(),
+        body: FilledButton(onPressed: (){
+          print('clicked');
+          Flucurl().test();
+        }, child: Text('send request')),
       ),
     );
   }
