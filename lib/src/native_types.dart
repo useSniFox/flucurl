@@ -12,7 +12,6 @@ class NativeConfig with NativeFreeable {
 
   NativeConfig(this.config) {
     nativeConfig = allocate(ffi.sizeOf<bindings.Config>());
-    nativeConfig.ref.maxRedirect = config.maxRedirects;
     nativeConfig.ref.timeout = config.timeout;
     nativeConfig.ref.proxy = config.proxy.toNative(this);
     if (config.dnsResolver != null) {

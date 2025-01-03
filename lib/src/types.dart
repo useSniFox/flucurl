@@ -1,8 +1,6 @@
 class FlucurlConfig {
   final int timeout;
 
-  final int maxRedirects;
-
   final String proxy;
 
   final String? Function(String host)? dnsResolver;
@@ -11,7 +9,6 @@ class FlucurlConfig {
 
   const FlucurlConfig({
     this.timeout = 30000,
-    this.maxRedirects = 5,
     this.proxy = '',
     this.dnsResolver,
     this.tlsConfig = const TlsConfig(),

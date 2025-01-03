@@ -151,10 +151,6 @@ final class Config extends ffi.Struct {
   @ffi.Int()
   external int timeout;
 
-  /// Maximum number of redirects to follow.
-  @ffi.Int()
-  external int maxRedirect;
-
   /// http or socks5 proxy, in the format of "http://host:port" or
   /// "socks5://host:port". Null for no proxy.
   external ffi.Pointer<ffi.Char> proxy;
