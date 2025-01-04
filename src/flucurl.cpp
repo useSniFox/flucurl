@@ -1,15 +1,8 @@
 #include "flucurl.h"
 
-#include <basetsd.h>
-
 #include <algorithm>
 #include <chrono>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
 #include <iostream>
-#include <ostream>
 #include <random>
 #include <sstream>
 #include <string>
@@ -42,7 +35,7 @@ uint32_t rng(uint32_t min, uint32_t max) {
 }
 
 std::string generate_request_id(Request const &r) {
-  std::stringstream builder{};
+  std::ostringstream builder{};
   builder << r.url << '-' << system_clock::now().time_since_epoch().count()
           << '-' << rng(0, 0xFFFFFFFF);
   return builder.str();
@@ -123,8 +116,7 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   value[value_len] = '\0';
 
   std::cout << key << " " << value << std::endl;
-  header_data->header_entries.push_back(Field{.key = key, .value = value});
-  fflush(stdout);
+  header_data->header_entries.emplace_back(key, value);
 
   return total_size;
 }
