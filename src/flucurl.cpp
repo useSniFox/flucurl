@@ -3,13 +3,11 @@
 #include <basetsd.h>
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <format>
 #include <iostream>
 #include <ostream>
 #include <random>
