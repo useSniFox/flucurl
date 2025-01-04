@@ -1,14 +1,14 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-
+import 'package:crypto/crypto.dart';
 late String platform;
 
 const curlVersion = '8.11.1';
 
 void main(List<String> args) async {
   if (args.isEmpty) {
-    print('Usage: dart build.dart <platform> <compiler> <generator> <cmake>');
+    stdout.writeln('Usage: dart build.dart <platform> <compiler> <generator> <cmake>');
     exit(1);
   }
   platform = args[0];
@@ -35,14 +35,26 @@ void main(List<String> args) async {
       exit(result.exitCode);
     }
   } else if (platform == "linux") {
-    stdout.writeln('Downloading curl $curlVersion...');
     var curlDir = Directory('curl-x86_64');
     if (curlDir.existsSync()) {
       curlDir.deleteSync(recursive: true);
     }
-    final url = "https://github.com/useSniFox/static-curl/releases/download/v$curlVersion/curl-linux-x86_64-dev-$curlVersion.tar.xz";
-    curlDir.createSync();
-    await Dio().download(url, 'curl.tar.xz');
+    var curlFile = File('curl.tar.xz');
+    if (curlFile.existsSync()) {
+      const sha256Result = "10CB7624D74FEE6F927B6B67850D63A93B6E8D1E15BB0D400137B61EFAE815D4";
+      final bytes = await curlFile.readAsBytes();
+      final hash = sha256.convert(bytes).toString().toUpperCase();
+      if (hash != sha256Result) {
+        curlFile.deleteSync();
+      } else {
+        stdout.writeln('curl $curlVersion already downloaded');
+      }
+    }
+    if (!curlFile.existsSync()) {
+      stdout.writeln('Downloading curl $curlVersion...');
+      final url = "https://github.com/useSniFox/static-curl/releases/download/v$curlVersion/curl-linux-x86_64-dev-$curlVersion.tar.xz";
+      await Dio().download(url, 'curl.tar.xz');
+    }
     Process.runSync('tar', ['-xf', 'curl.tar.xz']);
     buildDir.createSync();
     Directory.current = 'build';

@@ -15,11 +15,10 @@ endif()
 execute_process(
   COMMAND dart run src/build.dart linux ${CMAKE_CXX_COMPILER} ${CMAKE_GENERATOR} ${CMAKE_COMMAND}
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
-  OUTPUT_VARIABLE output
   RESULT_VARIABLE result
 )
 if(NOT result EQUAL 0)
-	message(FATAL_ERROR "Failed to run build.dart. Exit code: ${result} Output: ${output}")
+	message(FATAL_ERROR "Failed to run build.dart. Exit code: ${result}")
 endif()
 
 # Project-level configuration.
