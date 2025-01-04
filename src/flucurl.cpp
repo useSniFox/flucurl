@@ -199,7 +199,7 @@ class Session {
   }
 };
 
-auto session_init(Config const &config) -> void * {
+auto session_init(Config config) -> void * {
   auto *session = new Session();
   session->multi_handle = curl_multi_init();
   session->worker = std::make_unique<std::thread>([session]() {

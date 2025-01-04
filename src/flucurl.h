@@ -85,7 +85,7 @@ FFI_PLUGIN_EXPORT void sendRequest(Request request, ResponseCallback callback,
 
                                    DataHandler onData, ErrorHandler onError);
 
-FFI_PLUGIN_EXPORT void *session_init(Config const &config);
+FFI_PLUGIN_EXPORT void *session_init(Config config);
 FFI_PLUGIN_EXPORT void session_terminate(void *session);
 FFI_PLUGIN_EXPORT void session_send_request(void *session, Request request,
                                             ResponseCallback callback,
