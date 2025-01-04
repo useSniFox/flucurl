@@ -63,27 +63,6 @@ class FlucurlBindings {
   late final _flucurl_free_bodydata = _flucurl_free_bodydataPtr
       .asFunction<void Function(ffi.Pointer<ffi.Char>)>();
 
-  void sendRequest(
-    Request request,
-    ResponseCallback callback,
-    DataHandler onData,
-    ErrorHandler onError,
-  ) {
-    return _sendRequest(
-      request,
-      callback,
-      onData,
-      onError,
-    );
-  }
-
-  late final _sendRequestPtr = _lookup<
-      ffi.NativeFunction<
-          ffi.Void Function(Request, ResponseCallback, DataHandler,
-              ErrorHandler)>>('sendRequest');
-  late final _sendRequest = _sendRequestPtr.asFunction<
-      void Function(Request, ResponseCallback, DataHandler, ErrorHandler)>();
-
   ffi.Pointer<ffi.Void> session_init(
     Config config,
   ) {
@@ -159,8 +138,27 @@ final class Request extends ffi.Struct {
   external int header_count;
 }
 
+enum HTTPVersion {
+  HTTP1_0(0),
+  HTTP1_1(1),
+  HTTP2(2),
+  HTTP3(3);
+
+  final int value;
+  const HTTPVersion(this.value);
+
+  static HTTPVersion fromValue(int value) => switch (value) {
+        0 => HTTP1_0,
+        1 => HTTP1_1,
+        2 => HTTP2,
+        3 => HTTP3,
+        _ => throw ArgumentError("Unknown value for HTTPVersion: $value"),
+      };
+}
+
 final class Response extends ffi.Struct {
-  external ffi.Pointer<ffi.Char> http_version;
+  @ffi.UnsignedInt()
+  external int http_version;
 
   @ffi.Int()
   external int status;
@@ -171,24 +169,24 @@ final class Response extends ffi.Struct {
   external int header_count;
 }
 
-final class TlsConfig extends ffi.Struct {
+final class TLSConfig extends ffi.Struct {
   /// Enable certificate verification.
   @ffi.Int()
-  external int verifyCertificates;
+  external int verify_certificates;
 
   /// Enable TLS Server Name Indication (SNI).
   @ffi.Int()
-  external int sni;
+  external int enable_sni;
 
   /// The trusted root certificates in PEM format.
   /// Either specify the root certificate or the full
   /// certificate chain.
   /// The Rust API currently doesn't support trusting a single leaf certificate.
   /// Hint: PEM format starts with `-----BEGIN CERTIFICATE-----`.
-  external ffi.Pointer<ffi.Pointer<ffi.Char>> trustedRootCertificates;
+  external ffi.Pointer<ffi.Pointer<ffi.Char>> trusted_root_certificates;
 
   @ffi.Int()
-  external int trustedRootCertificatesLength;
+  external int trusted_root_certificates_length;
 }
 
 final class Config extends ffi.Struct {
@@ -198,18 +196,29 @@ final class Config extends ffi.Struct {
 
   /// http or socks5 proxy, in the format of "http://host:port" or
   /// "socks5://host:port". Null for no proxy.
+  /// Authentication:
+  /// - scheme://user:password@host:port
   external ffi.Pointer<ffi.Char> proxy;
 
   /// DNS resolver function. If null or returns null, the system default
   /// resolver will be used.
-  external ffi.Pointer<DnsResolver> dnsResolver;
+  external ffi.Pointer<DNSResolver> dns_resolver;
 
   /// TLS configuration.
-  external ffi.Pointer<TlsConfig> tlsConfig;
+  external ffi.Pointer<TLSConfig> tls_config;
+
+  @ffi.UnsignedInt()
+  external int http_version;
+
+  @ffi.Int()
+  external int keep_alive;
+
+  @ffi.Int()
+  external int idle_timeout;
 }
 
-typedef DnsResolver = ffi.Pointer<ffi.NativeFunction<DnsResolverFunction>>;
-typedef DnsResolverFunction = ffi.Pointer<ffi.Char> Function(
+typedef DNSResolver = ffi.Pointer<ffi.NativeFunction<DNSResolverFunction>>;
+typedef DNSResolverFunction = ffi.Pointer<ffi.Char> Function(
     ffi.Pointer<ffi.Char> host);
 
 final class BodyData extends ffi.Struct {

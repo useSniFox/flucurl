@@ -25,17 +25,20 @@ class NativeConfig with NativeFreeable {
         }
       }
 
-      var callback = ffi.NativeCallable<bindings.DnsResolverFunction>.isolateLocal(resolver);
-      nativeConfig.ref.dnsResolver = callback.nativeFunction.cast();
+      var callback = ffi.NativeCallable<bindings.DNSResolverFunction>.isolateLocal(resolver);
+      nativeConfig.ref.dns_resolver = callback.nativeFunction.cast();
       addFunction(callback);
     }
-    nativeConfig.ref.tlsConfig = allocate(ffi.sizeOf<bindings.TlsConfig>());
-    nativeConfig.ref.tlsConfig.ref.sni = config.tlsConfig.sni ? 1 : 0;
-    nativeConfig.ref.tlsConfig.ref.verifyCertificates = config.tlsConfig.verifyCertificates ? 1 : 0;
+    nativeConfig.ref.tls_config = allocate(ffi.sizeOf<bindings.TLSConfig>());
+    nativeConfig.ref.tls_config.ref.enable_sni = config.tlsConfig.sni ? 1 : 0;
+    nativeConfig.ref.tls_config.ref.verify_certificates = config.tlsConfig.verifyCertificates ? 1 : 0;
     var cas = allocate<ffi.Pointer<ffi.Char>>(ffi.sizeOf<ffi.Pointer>() * config.tlsConfig.trustedRootCertificates.length);
     for (int i = 0; i < config.tlsConfig.trustedRootCertificates.length; i++) {
       cas[i] = config.tlsConfig.trustedRootCertificates[i].toNative(this);
     }
+    nativeConfig.ref.idle_timeout = config.idleTimeout;
+    nativeConfig.ref.keep_alive = config.keepAlive ? 1 : 0;
+    nativeConfig.ref.http_version = config.httpVersion.index;
   }
 }
 

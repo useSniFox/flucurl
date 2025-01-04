@@ -1,4 +1,7 @@
 import 'dart:typed_data';
+import 'flucurl_bindings_generated.dart' as generated;
+
+typedef HttpVersion = generated.HTTPVersion;
 
 class FlucurlConfig {
   final int timeout;
@@ -9,11 +12,20 @@ class FlucurlConfig {
 
   final TlsConfig tlsConfig;
 
+  final HttpVersion httpVersion;
+
+  final bool keepAlive;
+
+  final int idleTimeout;
+
   const FlucurlConfig({
-    this.timeout = 30000,
+    this.timeout = 30,
     this.proxy = '',
     this.dnsResolver,
     this.tlsConfig = const TlsConfig(),
+    this.httpVersion = HttpVersion.HTTP2,
+    this.keepAlive = true,
+    this.idleTimeout = 120,
   });
 }
 

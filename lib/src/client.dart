@@ -36,7 +36,6 @@ class FlucurlClient {
     var nativeFunctions = <ffi.NativeCallable>[];
 
     void clear() {
-      print('clearing');
       for (var function in nativeFunctions) {
         function.close();
       }
