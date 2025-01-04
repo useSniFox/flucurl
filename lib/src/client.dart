@@ -16,6 +16,7 @@ class FlucurlClient {
   }) {
     var nativeConfig = NativeConfig(config);
     session = bindings.session_init(nativeConfig.nativeConfig.ref);
+    nativeConfig.free();
   }
 
   Future<Response> send(Request request) async {
@@ -35,6 +36,7 @@ class FlucurlClient {
     var nativeFunctions = <ffi.NativeCallable>[];
 
     void clear() {
+      print('clearing');
       for (var function in nativeFunctions) {
         function.close();
       }
