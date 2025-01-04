@@ -32,7 +32,15 @@ if (ANDROID)
   set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)
 endif()
 
-find_package(CURL REQUIRED)
+if (UNIX) 
+  set(CURL_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/curl-x86_64/lib")
+  set(CURL_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/curl-x86_64/include")
+  include_directories(${CURL_INCLUDE_DIR})
+endif()
+
+if (WIN32 OR ANDROID)
+  find_package(CURL REQUIRED)
+endif()
 add_library(flucurl SHARED
   "flucurl.cpp"
 )
@@ -43,8 +51,13 @@ set_target_properties(flucurl PROPERTIES
 )
 
 target_compile_definitions(flucurl PUBLIC DART_SHARED_LIB)
-target_link_libraries(flucurl PRIVATE CURL::libcurl)
 
+if (WIN32 OR ANDROID)
+  target_link_libraries(flucurl PRIVATE CURL::libcurl)
+else(UNIX)
+  file(GLOB CURL_LIBS "${CURL_LIB_DIR}/*.a")
+  target_link_libraries(flucurl PRIVATE ${CURL_LIBS})
+endif()
 
 if (ANDROID)
   # Support Android 15 16k page size

@@ -5,6 +5,15 @@
 cmake_minimum_required(VERSION 3.14)
 
 execute_process(
+  COMMAND dart.bat pub get
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+  RESULT_VARIABLE result
+)
+if(NOT result EQUAL 0)
+	message(FATAL_ERROR "Failed to run pub get. Exit code: ${result}")
+endif()
+
+execute_process(
   COMMAND dart.bat run src/build.dart windows ${CMAKE_CXX_COMPILER} ${CMAKE_GENERATOR} ${CMAKE_COMMAND}
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
   OUTPUT_VARIABLE output

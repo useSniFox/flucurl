@@ -1,8 +1,12 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
+
 late String platform;
 
-void main(List<String> args) {
+const curlVersion = '8.11.1';
+
+void main(List<String> args) async {
   if (args.isEmpty) {
     print('Usage: dart build.dart <platform> <compiler> <generator> <cmake>');
     exit(1);
@@ -31,7 +35,29 @@ void main(List<String> args) {
       exit(result.exitCode);
     }
   } else if (platform == "linux") {
-    // TODO
+    stdout.writeln('Downloading curl $curlVersion...');
+    var curlDir = Directory('curl-x86_64');
+    if (curlDir.existsSync()) {
+      curlDir.deleteSync(recursive: true);
+    }
+    final url = "https://github.com/useSniFox/static-curl/releases/download/v$curlVersion/curl-linux-x86_64-dev-$curlVersion.tar.xz";
+    curlDir.createSync();
+    await Dio().download(url, 'curl.tar.xz');
+    Process.runSync('tar', ['-xf', 'curl.tar.xz']);
+    buildDir.createSync();
+    Directory.current = 'build';
+    var result = Process.runSync(cmakeRoot, ["-DCMAKE_CXX_COMPILER=$compiler", "-DCMAKE_BUILD_TYPE=Release", "-G", generator, ".."]);
+    stdout.writeln(result.stdout);
+    if (result.exitCode != 0) {
+      stderr.writeln(result.stderr);
+      exit(result.exitCode);
+    }
+    result = Process.runSync(cmakeRoot, ["--build", ".", "--config Release"]);
+    stdout.writeln(result.stdout);
+    if (result.exitCode != 0) {
+      stderr.writeln(result.stderr);
+      exit(result.exitCode);
+    }
   } else {
     throw 'Unsupported platform: $platform';
   }

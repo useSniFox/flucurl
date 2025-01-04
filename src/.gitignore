@@ -4,3 +4,5 @@ build/
 .idea/
 cmake-build-debug-visual-studio/
 CMakeUserPresets.json
+curl-x86_64/
+curl.tar.xz
