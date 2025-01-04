@@ -23,8 +23,10 @@ typedef struct Request {
   int header_count;
 } Request;
 
+enum HTTPVersion { HTTP1_0, HTTP1_1, HTTP2, HTTP3 };
+
 typedef struct Response {
-  const char *http_version;
+  HTTPVersion http_version;
   int status;
   Field *headers;
   int header_count;
@@ -37,7 +39,7 @@ typedef struct TLSConfig {
   int verify_certificates;
 
   /// Enable TLS Server Name Indication (SNI).
-  int sni;
+  int enable_sni;
 
   /// The trusted root certificates in PEM format.
   /// Either specify the root certificate or the full
@@ -55,6 +57,8 @@ typedef struct Config {
 
   /// http or socks5 proxy, in the format of "http://host:port" or
   /// "socks5://host:port". Null for no proxy.
+  /// Authentication:
+  /// - scheme://user:password@host:port
   char *proxy;
 
   /// DNS resolver function. If null or returns null, the system default
@@ -63,6 +67,12 @@ typedef struct Config {
 
   /// TLS configuration.
   TLSConfig *tls_config;
+
+  HTTPVersion http_version;
+
+  int keep_alive;
+  int idle_timeout;
+
 } Config;
 
 typedef struct BodyData {
