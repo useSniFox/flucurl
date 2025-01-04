@@ -169,6 +169,7 @@ class Session {
       onError("Unable to set URL");
       return;
     }
+    curl_multi_add_handle(multi_handle, curl);
   }
 
   void remove_request(CURL *curl) {

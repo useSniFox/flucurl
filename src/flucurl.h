@@ -30,11 +30,11 @@ typedef struct Response {
   int header_count;
 } Response;
 
-typedef char *(*DnsResolver)(const char *host);
+typedef char *(*DNSResolver)(const char *host);
 
-typedef struct TlsConfig {
+typedef struct TLSConfig {
   /// Enable certificate verification.
-  int verifyCertificates;
+  int verify_certificates;
 
   /// Enable TLS Server Name Indication (SNI).
   int sni;
@@ -44,10 +44,10 @@ typedef struct TlsConfig {
   /// certificate chain.
   /// The Rust API currently doesn't support trusting a single leaf certificate.
   /// Hint: PEM format starts with `-----BEGIN CERTIFICATE-----`.
-  const char **trustedRootCertificates;
+  const char **trusted_root_certificates;
 
-  int trustedRootCertificatesLength;
-} TlsConfig;
+  int trusted_root_certificates_length;
+} TLSConfig;
 
 typedef struct Config {
   /// Timeout in seconds.
@@ -59,10 +59,10 @@ typedef struct Config {
 
   /// DNS resolver function. If null or returns null, the system default
   /// resolver will be used.
-  DnsResolver *dnsResolver;
+  DNSResolver *dns_resolver;
 
   /// TLS configuration.
-  TlsConfig *tlsConfig;
+  TLSConfig *tls_config;
 } Config;
 
 typedef struct BodyData {
@@ -80,10 +80,6 @@ FFI_PLUGIN_EXPORT void global_init();
 
 FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response);
 FFI_PLUGIN_EXPORT void flucurl_free_bodydata(const char *);
-
-FFI_PLUGIN_EXPORT void sendRequest(Request request, ResponseCallback callback,
-
-                                   DataHandler onData, ErrorHandler onError);
 
 FFI_PLUGIN_EXPORT void *session_init(Config config);
 FFI_PLUGIN_EXPORT void session_terminate(void *session);
