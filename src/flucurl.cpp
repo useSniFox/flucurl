@@ -136,6 +136,7 @@ class Session {
   std::unique_ptr<std::thread> worker;
   bool should_exit = false;
   int running_handles = 0;
+  Config config;
 
   void add_request(Request request, ResponseCallback callback,
                    DataHandler onData, ErrorHandler onError) {
