@@ -15,19 +15,19 @@ typedef struct Field {
 } Field;
 
 typedef struct Request {
-  char *url;
-  char *method;
-  char *data;
-  int contentLength;
-  Field *header;
-  int headerLength;
+  const char *url;
+  const char *method;
+  const char *data;
+  int content_length;
+  Field *headers;
+  int header_count;
 } Request;
 
 typedef struct Response {
-  const char *httpVersion;
+  const char *http_version;
   int status;
-  Field *header;
-  int headerLength;
+  Field *headers;
+  int header_count;
 } Response;
 
 typedef char *(*DnsResolver)(const char *host);
@@ -70,7 +70,7 @@ typedef struct BodyData {
   int size;
 } BodyData;
 
-typedef void (*ResponseCallback)(Response *);
+typedef void (*ResponseCallback)(Response);
 
 typedef void (*DataHandler)(const BodyData);
 
@@ -78,11 +78,10 @@ typedef void (*ErrorHandler)(const char *message);
 
 FFI_PLUGIN_EXPORT void init();
 
-FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response *);
+FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response);
 FFI_PLUGIN_EXPORT void flucurl_free_bodydata(const char *);
 
-FFI_PLUGIN_EXPORT void sendRequest(Config *config, Request *request,
-                                   ResponseCallback callback,
+FFI_PLUGIN_EXPORT void sendRequest(Request request, ResponseCallback callback,
 
                                    DataHandler onData, ErrorHandler onError);
 #ifdef __cplusplus
