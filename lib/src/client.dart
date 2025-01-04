@@ -9,22 +9,22 @@ import 'package:flucurl/src/types.dart';
 import 'package:flucurl/src/flucurl_bindings_generated.dart' as generated;
 
 class FlucurlClient {
-  final FlucurlConfig config;
-
-  NativeConfig? _cachedNativeConfig;
+  late ffi.Pointer<ffi.Void> session;
 
   FlucurlClient({
-    this.config = const FlucurlConfig(),
-  });
+    FlucurlConfig config = const FlucurlConfig(),
+  }) {
+    var nativeConfig = NativeConfig(config);
+    session = bindings.session_init(nativeConfig.nativeConfig.ref);
+  }
 
   Future<Response> send(Request request) async {
-    _cachedNativeConfig ??= NativeConfig(config);
-    var nativeConfig = _cachedNativeConfig!;
-    var nativeRequest = NativeRequest(request);
+    var req = NativeRequest(request);
     var completer = Completer<Response>();
     var bodyStreamController = StreamController<Uint8List>();
 
-    if (request.body is Stream<List<int>> || request.body is Stream<Uint8List>) {
+    if (request.body is Stream<List<int>> ||
+        request.body is Stream<Uint8List>) {
       var data = <int>[];
       await for (var chunk in request.body as Stream<List<int>>) {
         data.addAll(chunk);
@@ -38,17 +38,17 @@ class FlucurlClient {
       for (var function in nativeFunctions) {
         function.close();
       }
-      nativeRequest.free();
+      req.free();
     }
 
-    void onResponse(ffi.Pointer<generated.Response> response) {
+    void onResponse(generated.Response response) {
       var url = request.url;
       var method = request.method;
-      var statusCode = response.ref.status;
+      var statusCode = response.status;
       var headers = <String, List<String>>{};
-      for (int i = 0; i < response.ref.headerLength; i++) {
+      for (int i = 0; i < response.header_count; i++) {
         var field = ffi.Pointer<generated.Field>.fromAddress(
-            response.ref.header.address + i * ffi.sizeOf<generated.Field>());
+            response.headers.address + i * ffi.sizeOf<generated.Field>());
         var key = field.ref.key.cast<Utf8>().toDartString();
         var value = field.ref.value.cast<Utf8>().toDartString();
         headers.putIfAbsent(key, () => []).add(value);
@@ -69,7 +69,9 @@ class FlucurlClient {
         clear();
         return;
       }
-      var view = data.data.cast<ffi.Uint8>().asTypedList(data.size, finalizer: nativeFreeBodyDataFunction.cast());
+      var view = data.data
+          .cast<ffi.Uint8>()
+          .asTypedList(data.size, finalizer: nativeFreeBodyDataFunction.cast());
       bodyStreamController.add(view);
     }
 
@@ -83,15 +85,20 @@ class FlucurlClient {
       }
     }
 
-    var nativeResponseCallback = ffi.NativeCallable<generated.ResponseCallbackFunction>.listener(onResponse);
-    var nativeDataHandler = ffi.NativeCallable<generated.DataHandlerFunction>.listener(onData);
-    var nativeErrorHandler = ffi.NativeCallable<generated.ErrorHandlerFunction>.listener(onError);
+    var nativeResponseCallback =
+        ffi.NativeCallable<generated.ResponseCallbackFunction>.listener(
+            onResponse);
+    var nativeDataHandler =
+        ffi.NativeCallable<generated.DataHandlerFunction>.listener(onData);
+    var nativeErrorHandler =
+        ffi.NativeCallable<generated.ErrorHandlerFunction>.listener(onError);
 
-    nativeFunctions.addAll([nativeResponseCallback, nativeDataHandler, nativeErrorHandler]);
+    nativeFunctions.addAll(
+        [nativeResponseCallback, nativeDataHandler, nativeErrorHandler]);
 
-    bindings.sendRequest(
-      nativeConfig.nativeConfig,
-      nativeRequest.nativeRequest,
+    bindings.session_send_request(
+      session,
+      req.nativeRequest.ref,
       nativeResponseCallback.nativeFunction,
       nativeDataHandler.nativeFunction,
       nativeErrorHandler.nativeFunction,
@@ -101,7 +108,6 @@ class FlucurlClient {
   }
 
   void close() {
-    _cachedNativeConfig?.free();
-    _cachedNativeConfig = null;
+    bindings.session_terminate(session);
   }
 }

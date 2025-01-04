@@ -1,14 +1,8 @@
 import 'dart:typed_data';
-import 'package:flucurl/src/binding.dart';
-
 import 'flucurl.dart';
 import 'package:dio/dio.dart';
 
-abstract class Flucurl {
-  static init() {
-    bindings.init();
-  }
-}
+export 'src/flucurl.dart';
 
 class FlucurlAdapter implements HttpClientAdapter {
   late final FlucurlClient client;

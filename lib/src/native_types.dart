@@ -50,13 +50,14 @@ class NativeRequest with NativeFreeable {
     var reqHeaders = request.headers;
     var (data, size) = _translateBody(request.body, reqHeaders);
     var headers = getHeaders(reqHeaders);
-    nativeRequest.ref.header = allocate(ffi.sizeOf<bindings.Field>() * headers.length);
+    nativeRequest.ref.headers = allocate(ffi.sizeOf<bindings.Field>() * headers.length);
     for (int i = 0; i < headers.length; i++) {
-      nativeRequest.ref.header[i].key = headers.keys.elementAt(i).toNative(this);
-      nativeRequest.ref.header[i].value = headers.values.elementAt(i).toNative(this);
+      nativeRequest.ref.headers[i].key = headers.keys.elementAt(i).toNative(this);
+      nativeRequest.ref.headers[i].value = headers.values.elementAt(i).toNative(this);
     }
     nativeRequest.ref.data = data;
-    nativeRequest.ref.contentLength = size;
+    nativeRequest.ref.content_length = size;
+    nativeRequest.ref.header_count = headers.length;
   }
 
   Map<String, String> getHeaders(Map<String, String> reqHeaders) {

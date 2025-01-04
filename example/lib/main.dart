@@ -47,23 +47,29 @@ class _MyAppState extends State<MyApp> {
                 alignment: Alignment.centerRight,
                 child: FilledButton(
                   onPressed: () async {
-                    if (url.isEmpty || loading) {
-                      return;
+                    try {
+                      if (url.isEmpty || loading) {
+                        return;
+                      }
+                      setState(() {
+                        loading = true;
+                      });
+                      var dio = FlucurlDio(
+                          baseOptions:
+                              BaseOptions(validateStatus: (i) => true));
+                      response = await dio.get(url);
+                      dio.close();
+                    } finally {
+                      setState(() {
+                        loading = false;
+                      });
                     }
-                    setState(() {
-                      loading = true;
-                    });
-                    var dio = FlucurlDio();
-                    response = await dio.get(url);
-                    setState(() {
-                      loading = false;
-                    });
                   },
                   child: loading
                       ? SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(),
+                          child: CircularProgressIndicator(color: Colors.white,),
                         )
                       : Text('Send Request'),
                 ),

@@ -27,16 +27,16 @@ class FlucurlBindings {
           lookup)
       : _lookup = lookup;
 
-  void init() {
-    return _init();
+  void global_init() {
+    return _global_init();
   }
 
-  late final _initPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function()>>('init');
-  late final _init = _initPtr.asFunction<void Function()>();
+  late final _global_initPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function()>>('global_init');
+  late final _global_init = _global_initPtr.asFunction<void Function()>();
 
   void flucurl_free_reponse(
-    ffi.Pointer<Response> arg0,
+    Response arg0,
   ) {
     return _flucurl_free_reponse(
       arg0,
@@ -44,10 +44,10 @@ class FlucurlBindings {
   }
 
   late final _flucurl_free_reponsePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<Response>)>>(
+      _lookup<ffi.NativeFunction<ffi.Void Function(Response)>>(
           'flucurl_free_reponse');
-  late final _flucurl_free_reponse = _flucurl_free_reponsePtr
-      .asFunction<void Function(ffi.Pointer<Response>)>();
+  late final _flucurl_free_reponse =
+      _flucurl_free_reponsePtr.asFunction<void Function(Response)>();
 
   void flucurl_free_bodydata(
     ffi.Pointer<ffi.Char> arg0,
@@ -64,14 +64,12 @@ class FlucurlBindings {
       .asFunction<void Function(ffi.Pointer<ffi.Char>)>();
 
   void sendRequest(
-    ffi.Pointer<Config> config,
-    ffi.Pointer<Request> request,
+    Request request,
     ResponseCallback callback,
     DataHandler onData,
     ErrorHandler onError,
   ) {
     return _sendRequest(
-      config,
       request,
       callback,
       onData,
@@ -81,10 +79,61 @@ class FlucurlBindings {
 
   late final _sendRequestPtr = _lookup<
       ffi.NativeFunction<
-          ffi.Void Function(ffi.Pointer<Config>, ffi.Pointer<Request>,
-              ResponseCallback, DataHandler, ErrorHandler)>>('sendRequest');
+          ffi.Void Function(Request, ResponseCallback, DataHandler,
+              ErrorHandler)>>('sendRequest');
   late final _sendRequest = _sendRequestPtr.asFunction<
-      void Function(ffi.Pointer<Config>, ffi.Pointer<Request>, ResponseCallback,
+      void Function(Request, ResponseCallback, DataHandler, ErrorHandler)>();
+
+  ffi.Pointer<ffi.Void> session_init(
+    Config config,
+  ) {
+    return _session_init(
+      config,
+    );
+  }
+
+  late final _session_initPtr =
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Void> Function(Config)>>(
+          'session_init');
+  late final _session_init =
+      _session_initPtr.asFunction<ffi.Pointer<ffi.Void> Function(Config)>();
+
+  void session_terminate(
+    ffi.Pointer<ffi.Void> session,
+  ) {
+    return _session_terminate(
+      session,
+    );
+  }
+
+  late final _session_terminatePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+          'session_terminate');
+  late final _session_terminate =
+      _session_terminatePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void session_send_request(
+    ffi.Pointer<ffi.Void> session,
+    Request request,
+    ResponseCallback callback,
+    DataHandler onData,
+    ErrorHandler onError,
+  ) {
+    return _session_send_request(
+      session,
+      request,
+      callback,
+      onData,
+      onError,
+    );
+  }
+
+  late final _session_send_requestPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(ffi.Pointer<ffi.Void>, Request, ResponseCallback,
+              DataHandler, ErrorHandler)>>('session_send_request');
+  late final _session_send_request = _session_send_requestPtr.asFunction<
+      void Function(ffi.Pointer<ffi.Void>, Request, ResponseCallback,
           DataHandler, ErrorHandler)>();
 }
 
@@ -102,28 +151,24 @@ final class Request extends ffi.Struct {
   external ffi.Pointer<ffi.Char> data;
 
   @ffi.Int()
-  external int contentLength;
+  external int content_length;
 
-  external ffi.Pointer<Field> header;
+  external ffi.Pointer<Field> headers;
 
   @ffi.Int()
-  external int headerLength;
+  external int header_count;
 }
 
 final class Response extends ffi.Struct {
-  external ffi.Pointer<ffi.Char> httpVersion;
+  external ffi.Pointer<ffi.Char> http_version;
 
   @ffi.Int()
   external int status;
 
-  external ffi.Pointer<ffi.Char> url;
-
-  external ffi.Pointer<ffi.Char> method;
-
-  external ffi.Pointer<Field> header;
+  external ffi.Pointer<Field> headers;
 
   @ffi.Int()
-  external int headerLength;
+  external int header_count;
 }
 
 final class TlsConfig extends ffi.Struct {
@@ -176,8 +221,8 @@ final class BodyData extends ffi.Struct {
 
 typedef ResponseCallback
     = ffi.Pointer<ffi.NativeFunction<ResponseCallbackFunction>>;
-typedef ResponseCallbackFunction = ffi.Void Function(ffi.Pointer<Response>);
-typedef DartResponseCallbackFunction = void Function(ffi.Pointer<Response>);
+typedef ResponseCallbackFunction = ffi.Void Function(Response);
+typedef DartResponseCallbackFunction = void Function(Response);
 typedef DataHandler = ffi.Pointer<ffi.NativeFunction<DataHandlerFunction>>;
 typedef DataHandlerFunction = ffi.Void Function(BodyData);
 typedef DartDataHandlerFunction = void Function(BodyData);
