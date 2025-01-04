@@ -199,7 +199,7 @@ class Session {
   }
 };
 
-auto init_session(Config const &config) -> Session * {
+auto session_init(Config const &config) -> void * {
   auto *session = new Session();
   session->multi_handle = curl_multi_init();
   session->worker = std::make_unique<std::thread>([session]() {
@@ -238,7 +238,8 @@ auto init_session(Config const &config) -> Session * {
   return session;
 }
 
-auto session_terminate(Session *session) -> void {
+auto session_terminate(void *p) -> void {
+  auto *session = static_cast<Session *>(p);
   curl_multi_cleanup(session->multi_handle);
   session->should_exit = true;
   if (session->worker->joinable()) session->worker->join();
@@ -246,9 +247,9 @@ auto session_terminate(Session *session) -> void {
   delete session;
 }
 
-void session_send_request(Session *session, Request request,
-                          ResponseCallback callback, DataHandler onData,
-                          ErrorHandler onError) {
+void session_send_request(void *p, Request request, ResponseCallback callback,
+                          DataHandler onData, ErrorHandler onError) {
+  auto *session = static_cast<Session *>(p);
   session->add_request(request, callback, onData, onError);
 }
 

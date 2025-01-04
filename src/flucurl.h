@@ -76,7 +76,7 @@ typedef void (*DataHandler)(const BodyData);
 
 typedef void (*ErrorHandler)(const char *message);
 
-FFI_PLUGIN_EXPORT void init();
+FFI_PLUGIN_EXPORT void global_init();
 
 FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response);
 FFI_PLUGIN_EXPORT void flucurl_free_bodydata(const char *);
@@ -84,6 +84,13 @@ FFI_PLUGIN_EXPORT void flucurl_free_bodydata(const char *);
 FFI_PLUGIN_EXPORT void sendRequest(Request request, ResponseCallback callback,
 
                                    DataHandler onData, ErrorHandler onError);
+
+FFI_PLUGIN_EXPORT void *session_init(Config const &config);
+FFI_PLUGIN_EXPORT void session_terminate(void *session);
+FFI_PLUGIN_EXPORT void session_send_request(void *session, Request request,
+                                            ResponseCallback callback,
+                                            DataHandler onData,
+                                            ErrorHandler onError);
 #ifdef __cplusplus
 }
 #endif
