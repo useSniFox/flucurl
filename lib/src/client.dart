@@ -70,10 +70,10 @@ class FlucurlClient {
         clear();
         return;
       }
-      var view = data.data
-          .cast<ffi.Uint8>()
-          .asTypedList(data.size, finalizer: nativeFreeBodyDataFunction.cast());
-      bodyStreamController.add(view);
+      var d = Uint8List(data.size);
+      d.setAll(0, data.data.cast<ffi.Uint8>().asTypedList(data.size));
+      bodyStreamController.add(d);
+      bindings.flucurl_free_bodydata(data.data);
     }
 
     void onError(ffi.Pointer<ffi.Char> error) {
