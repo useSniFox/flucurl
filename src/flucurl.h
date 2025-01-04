@@ -23,8 +23,10 @@ typedef struct Request {
   int header_count;
 } Request;
 
+enum HTTPVersion { HTTP1_0, HTTP1_1, HTTP2, HTTP3 };
+
 typedef struct Response {
-  const char *http_version;
+  HTTPVersion http_version;
   int status;
   Field *headers;
   int header_count;
@@ -63,6 +65,9 @@ typedef struct Config {
 
   /// TLS configuration.
   TLSConfig *tls_config;
+
+  HTTPVersion http_version;
+
 } Config;
 
 typedef struct BodyData {

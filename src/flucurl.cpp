@@ -99,13 +99,13 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
     sin >> version >> status_code;
     header_data->response.status = status_code;
     if (version == "HTTP/1.1") {
-      header_data->response.http_version = "1.1";
+      header_data->response.http_version = HTTP1_1;
     } else if (version == "HTTP/2") {
-      header_data->response.http_version = "2";
+      header_data->response.http_version = HTTP2;
     } else if (version == "HTTP/3") {
-      header_data->response.http_version = "3";
+      header_data->response.http_version = HTTP3;
     } else {
-      header_data->response.http_version = "1.0";
+      header_data->response.http_version = HTTP1_0;
     }
     return total_size;
   }
