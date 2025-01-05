@@ -6,9 +6,15 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_ENABLE_EXPORTS ON)
 set(CMAKE_ENABLE_DEBUG_INFO ON)
 
-set(ANDROID CMAKE_SYSTEM_NAME STREQUAL "Android")
+set(CMAKE_CXX_STANDARD 20 REQUIRED)
+project(flucurl_library VERSION 0.0.1 LANGUAGES CXX)
+
+if (CMAKE_SYSTEM_NAME STREQUAL "Android")
+  set(ANDROID TRUE)
+endif()
 
 if (ANDROID)
+  message(FATAL_ERROR "Android is not supported")
   if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     set(DART_NAME "dart.bat")
   else()
@@ -35,9 +41,6 @@ if (ANDROID)
     message(FATAL_ERROR "Failed to run build.dart. Status code: ${result}")
   endif()
 endif()
-
-set(CMAKE_CXX_STANDARD 20 REQUIRED)
-project(flucurl_library VERSION 0.0.1 LANGUAGES CXX)
 
 if (LINUX) 
   set(CURL_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/curl-x86_64/lib")

@@ -47,10 +47,10 @@ class _MyAppState extends State<MyApp> {
                 alignment: Alignment.centerRight,
                 child: FilledButton(
                   onPressed: () async {
+                    if (url.isEmpty || loading) {
+                      return;
+                    }
                     try {
-                      if (url.isEmpty || loading) {
-                        return;
-                      }
                       setState(() {
                         loading = true;
                       });

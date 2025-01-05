@@ -13,7 +13,7 @@ class NativeConfig with NativeFreeable {
   NativeConfig(this.config) {
     nativeConfig = allocate(ffi.sizeOf<bindings.Config>());
     nativeConfig.ref.timeout = config.timeout;
-    nativeConfig.ref.proxy = config.proxy.toNative(this);
+    nativeConfig.ref.proxy = config.proxy == '' ? ffi.nullptr.cast() : config.proxy.toNative(this);
     if (config.dnsResolver != null) {
       ffi.Pointer<ffi.Char> resolver(ffi.Pointer<ffi.Char> host) {
         var result = config.dnsResolver!(host.cast<Utf8>().toDartString());

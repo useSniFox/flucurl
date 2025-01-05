@@ -27,13 +27,23 @@ class FlucurlBindings {
           lookup)
       : _lookup = lookup;
 
-  void global_init() {
-    return _global_init();
+  void flucurl_global_init() {
+    return _flucurl_global_init();
   }
 
-  late final _global_initPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function()>>('global_init');
-  late final _global_init = _global_initPtr.asFunction<void Function()>();
+  late final _flucurl_global_initPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function()>>('flucurl_global_init');
+  late final _flucurl_global_init =
+      _flucurl_global_initPtr.asFunction<void Function()>();
+
+  void flucurl_global_deinit() {
+    return _flucurl_global_deinit();
+  }
+
+  late final _flucurl_global_deinitPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function()>>('flucurl_global_deinit');
+  late final _flucurl_global_deinit =
+      _flucurl_global_deinitPtr.asFunction<void Function()>();
 
   void flucurl_free_reponse(
     Response arg0,
@@ -170,6 +180,9 @@ final class Response extends ffi.Struct {
 }
 
 final class TLSConfig extends ffi.Struct {
+  @ffi.Int()
+  external int enable;
+
   /// Enable certificate verification.
   @ffi.Int()
   external int verify_certificates;
