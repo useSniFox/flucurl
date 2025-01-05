@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -119,6 +120,38 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   return total_size;
 }
 
+template <typename T>
+class ObjectPool {
+  std::vector<T *> items;
+  std::mutex mtx;
+  uint32_t max_size;
+
+ public:
+  T *acquire_item() {
+    std::unique_lock<std::mutex> lk;
+    if (items.empty()) {
+      return new T();
+    }
+    T *item = items.back();
+    items.pop_back();
+    return item;
+  }
+  void release_item(T *item) {
+    std::unique_lock<std::mutex> lk;
+    if (items.size() >= max_size) {
+      delete item;
+      return;
+    }
+    items.push_back(item);
+  }
+  ObjectPool(int32_t max_size = 15) : max_size(max_size) {}
+  ~ObjectPool() {
+    for (auto item : items) {
+      delete item;
+    }
+  }
+};
+
 class Session {
   // you should lock outside
   CURL *acquire_handle() {
@@ -132,15 +165,16 @@ class Session {
   }
 
   // you should lock outside
-  void return_handle(CURL *curl) {
+  void release_handle(CURL *curl) {
     // when there is too many idle handles
-    if (handles.size() > 15) {
+    if (handles.size() >= 15) {
       curl_easy_cleanup(curl);
       return;
     }
     curl_easy_reset(curl);
     handles.push_back(curl);
   }
+  ObjectPool<RequestTaskData> request_task_pool;
 
  public:
   std::unordered_map<CURL *, RequestTaskData *> requests;
@@ -161,7 +195,7 @@ class Session {
       return;
     }
 
-    auto *data = new RequestTaskData();
+    auto *data = request_task_pool.acquire_item();
     data->onData = onData;
     data->onError = onError;
     data->callback = callback;
@@ -233,10 +267,10 @@ class Session {
     std::unique_lock<std::mutex> lk{request_mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
-      delete it->second;
+      request_task_pool.release_item(it->second);
       requests.erase(it);
       curl_multi_remove_handle(multi_handle, curl);
-      return_handle(curl);
+      release_handle(curl);
     }
   }
 
