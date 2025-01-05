@@ -8,3 +8,5 @@ curl-x86_64/
 curl.tar.xz
 curl/
 curl.zip
+CMakeUserPresets.json
+vcpkg.json

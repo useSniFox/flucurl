@@ -138,6 +138,39 @@ void findVcpkg() {
 }
 ''';
   File('CMakeUserPresets.json').writeAsStringSync(content);
+  content = '''
+{
+    "version": 2,
+    "configurePresets": [
+        {
+            "name": "vcpkg",
+            "generator": "Ninja",
+            "binaryDir": "\${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "\$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+            }
+        }
+    ]
+}
+''';
+  File('CMakePresets.json').writeAsStringSync(content);
+  content = '''
+{
+  "dependencies": [
+    {
+      "name": "curl",
+      "version": "8.11.1",
+      "features": [
+        "openssl",
+        "http2",
+        "brotli",
+        "websockets"
+      ]
+    }
+  ]
+}
+''';
+  File('vcpkg.json').writeAsStringSync(content);
 }
 
 extension FileExt on FileSystemEntity {

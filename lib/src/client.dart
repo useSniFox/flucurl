@@ -98,9 +98,7 @@ class FlucurlClient {
 
     nativeFunctions.addAll(
         [nativeResponseCallback, nativeDataHandler, nativeErrorHandler]);
-
-    print('Sending request');
-
+        
     bindings.session_send_request(
       session,
       req.nativeRequest.ref,
