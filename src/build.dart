@@ -74,7 +74,7 @@ void main(List<String> args) async {
     }
   } else if (platform == "android") {
     var aar = File('curl.zip');
-    const sha256Result = "D3F8B73BDF8368A74D14ADC169225E013D257C16919E529E7D7A2BB93A68513E";
+    const sha256Result = "BE61C7D41E565A034E362885CF3DE5DFAE48BDBB0E0CFCBF9CE2D275825BBFD9";
     if (aar.existsSync()) {
       final bytes = await aar.readAsBytes();
       final hash = sha256.convert(bytes).toString().toUpperCase();
