@@ -111,7 +111,7 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   std::copy(pos + 2, header_line + total_size - 2, value);
   value[value_len] = '\0';
 
-  header_data->header_entries.emplace_back(key, value);
+  header_data->header_entries.push_back({.key = key, .value = value});
 
   return total_size;
 }
