@@ -86,41 +86,53 @@ extension Utf8String on String {
 
 class _MemPool {
   final int length;
-
   final int itemSize;
-
   final _mem = <ffi.Pointer, bool>{};
+  var _availableCount = 0;
 
   _MemPool(this.length, this.itemSize) {
     for (var i = 0; i < length; i++) {
       var p = malloc.allocate(itemSize);
       _mem[p] = false;
     }
+    _availableCount = length;
   }
 
   ffi.Pointer allocate() {
-    for (var p in _mem.keys) {
-      if (!_mem[p]!) {
-        _mem[p] = true;
-        return p;
+    if (_availableCount == 0) {
+      // Pool is full, allocate new memory outside the pool
+      return malloc.allocate(itemSize);
+    }
+
+    for (var entry in _mem.entries) {
+      if (!entry.value) {
+        _mem[entry.key] = true;
+        _availableCount--;
+        return entry.key;
       }
     }
-    return malloc.allocate(itemSize);
-  }
 
-  void free(ffi.Pointer pointer) {
-    if (_mem.containsKey(pointer)) {
-      _mem[pointer] = false;
-    } else {
-      malloc.free(pointer);
-    }
+    throw StateError('Failed to allocate memory from pool');
   }
 
   bool maybeFree(ffi.Pointer pointer) {
     if (_mem.containsKey(pointer)) {
-      _mem[pointer] = false;
+      if (_mem[pointer] == true) {
+        _mem[pointer] = false;
+        _availableCount++;
+      } else {
+        throw StateError('Memory already freed');
+      }
       return true;
     }
     return false;
+  }
+
+  void dispose() {
+    for (var pointer in _mem.keys) {
+      malloc.free(pointer);
+    }
+    _mem.clear();
+    _availableCount = 0;
   }
 }
