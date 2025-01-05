@@ -26,7 +26,7 @@ typedef struct Request {
 enum HTTPVersion { HTTP1_0, HTTP1_1, HTTP2, HTTP3 };
 
 typedef struct Response {
-  enum HTTPVersion http_version;
+  HTTPVersion http_version;
   int status;
   Field *headers;
   int header_count;
@@ -35,6 +35,7 @@ typedef struct Response {
 typedef char *(*DNSResolver)(const char *host);
 
 typedef struct TLSConfig {
+  int enable;
   /// Enable certificate verification.
   int verify_certificates;
 
@@ -68,7 +69,7 @@ typedef struct Config {
   /// TLS configuration.
   TLSConfig *tls_config;
 
-  enum HTTPVersion http_version;
+  HTTPVersion http_version;
 
   int keep_alive;
   int idle_timeout;

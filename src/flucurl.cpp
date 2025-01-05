@@ -142,23 +142,64 @@ class Session {
     data->response = {};
     std::unique_lock<std::mutex> lk{mtx};
 
-    requests[curl] = data;
-
+    // set header receive callback
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, data);
 
+    // set body receive callback
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
 
+    // set default ssl support
     curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
     curl_easy_setopt(curl, CURLOPT_SSLENGINE, "dynamic");
     curl_easy_setopt(curl, CURLOPT_SSLENGINE_DEFAULT, 1l);
+
+    switch (config.http_version) {
+      case HTTP1_0:
+        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+        break;
+      case HTTP1_1:
+        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+        break;
+      case HTTP2:
+        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
+        break;
+      case HTTP3:
+        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_3);
+        break;
+      default:
+        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_NONE);
+        break;
+    }
+
+    // set response timeout
+    if (config.timeout) {
+      curl_easy_setopt(curl, CURLOPT_TIMEOUT, config.timeout);
+    }
+
+    // set http proxy
+    if (config.proxy) {
+      curl_easy_setopt(curl, CURLOPT_PROXY, config.proxy);
+    }
+
+    // set tcp keep alive
+    if (config.keep_alive) {
+      curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, config.keep_alive);
+    }
+
+    // set tcp idle timeout
+    if (config.idle_timeout) {
+      curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, config.idle_timeout);
+    }
 
     CURLcode ret = curl_easy_setopt(curl, CURLOPT_URL, request.url);
     if (ret != CURLE_OK) {
       onError("Unable to set URL");
       return;
     }
+    requests[curl] = data;
+
     curl_multi_add_handle(multi_handle, curl);
   }
 
@@ -197,7 +238,11 @@ class Session {
 
 auto session_init(Config config) -> void * {
   auto *session = new Session();
-  session->multi_handle = curl_multi_init();
+  session->config = config;
+  CURLM *multi_handle = curl_multi_init();
+  // enable HTTP2 multiplexing by default
+  curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
+  session->multi_handle = multi_handle;
   session->worker = std::make_unique<std::thread>([session]() {
     do {
       CURLMcode mc =
@@ -232,7 +277,6 @@ auto session_init(Config config) -> void * {
         }
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
     } while (!session->should_exit);
   });
   return session;
