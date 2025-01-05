@@ -20,18 +20,20 @@ class FlucurlClient {
   }
 
   Future<Response> send(Request request) async {
+    if (request.body is Stream) {
+      var builder = BytesBuilder(copy: false);
+      await for (var chunk in request.body as Stream) {
+        if (chunk is! List<int>) {
+          throw ArgumentError('Stream must only yield List<int>');
+        }
+        builder.add(chunk);
+      }
+      request = request.copyWith(body: builder.takeBytes());
+    }
+
     var req = NativeRequest(request);
     var completer = Completer<Response>();
     var bodyStreamController = StreamController<Uint8List>();
-
-    if (request.body is Stream<List<int>> ||
-        request.body is Stream<Uint8List>) {
-      var data = <int>[];
-      await for (var chunk in request.body as Stream<List<int>>) {
-        data.addAll(chunk);
-      }
-      request = request.copyWith(body: data);
-    }
 
     var nativeFunctions = <ffi.NativeCallable>[];
 
