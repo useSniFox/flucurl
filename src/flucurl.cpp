@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <sstream>
@@ -14,13 +16,15 @@
 #ifdef _WIN32
 #include "build/vcpkg_installed/x64-windows/include/curl/curl.h"
 #include "build/vcpkg_installed/x64-windows/include/curl/easy.h"
-#include "build/vcpkg_installed/x64-windows/include/curl/urlapi.h"
 #include "build/vcpkg_installed/x64-windows/include/curl/multi.h"
+#include "build/vcpkg_installed/x64-windows/include/curl/urlapi.h"
+
 #else
 #include <curl/curl.h>
 #include <curl/easy.h>
-#include <curl/urlapi.h>
 #include <curl/multi.h>
+#include <curl/urlapi.h>
+
 #endif
 
 using namespace std::chrono;
@@ -116,11 +120,67 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   return total_size;
 }
 
+template <typename T>
+class ObjectPool {
+  std::vector<T *> items;
+  std::mutex mtx;
+  uint32_t max_size;
+
+ public:
+  T *acquire_item() {
+    std::unique_lock<std::mutex> lk;
+    if (items.empty()) {
+      return new T();
+    }
+    T *item = items.back();
+    items.pop_back();
+    return item;
+  }
+  void release_item(T *item) {
+    std::unique_lock<std::mutex> lk;
+    if (items.size() >= max_size) {
+      delete item;
+      return;
+    }
+    items.push_back(item);
+  }
+  ObjectPool(int32_t max_size = 15) : max_size(max_size) {}
+  ~ObjectPool() {
+    for (auto item : items) {
+      delete item;
+    }
+  }
+};
+
 class Session {
+  // you should lock outside
+  CURL *acquire_handle() {
+    if (handles.empty()) {
+      CURL *curl = curl_easy_init();
+      return curl;
+    }
+    CURL *curl = handles.back();
+    handles.pop_back();
+    return curl;
+  }
+
+  // you should lock outside
+  void release_handle(CURL *curl) {
+    // when there is too many idle handles
+    if (handles.size() >= 15) {
+      curl_easy_cleanup(curl);
+      return;
+    }
+    curl_easy_reset(curl);
+    handles.push_back(curl);
+  }
+  ObjectPool<RequestTaskData> request_task_pool;
+
  public:
   std::unordered_map<CURL *, RequestTaskData *> requests;
-  std::mutex mtx;
+  std::mutex request_mtx, handle_mtx;
   CURLM *multi_handle = nullptr;
+  std::vector<CURL *> handles;
   std::unique_ptr<std::thread> worker;
   bool should_exit = false;
   int running_handles = 0;
@@ -128,19 +188,19 @@ class Session {
 
   void add_request(Request request, ResponseCallback callback,
                    DataHandler onData, ErrorHandler onError) {
-    CURL *curl = curl_easy_init();
+    std::unique_lock<std::mutex> lk{request_mtx};
+    CURL *curl = acquire_handle();
     if (curl == nullptr) {
       onError("Unable to initialize curl");
       return;
     }
 
-    auto *data = new RequestTaskData();
+    auto *data = request_task_pool.acquire_item();
     data->onData = onData;
     data->onError = onError;
     data->callback = callback;
     data->request = request;
     data->response = {};
-    std::unique_lock<std::mutex> lk{mtx};
 
     // set header receive callback
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
@@ -204,14 +264,13 @@ class Session {
   }
 
   void remove_request(CURL *curl) {
-    std::unique_lock<std::mutex> lk{mtx};
-
+    std::unique_lock<std::mutex> lk{request_mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
-      delete it->second;
+      request_task_pool.release_item(it->second);
       requests.erase(it);
       curl_multi_remove_handle(multi_handle, curl);
-      curl_easy_cleanup(curl);
+      release_handle(curl);
     }
   }
 
@@ -219,8 +278,7 @@ class Session {
   ~Session() {}
 
   void report_done(CURL *curl) {
-    std::unique_lock<std::mutex> lk{mtx};
-
+    std::unique_lock<std::mutex> lk{request_mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onData({nullptr, 0});
@@ -228,7 +286,7 @@ class Session {
   }
 
   void report_error(CURL *curl, const char *message) {
-    std::unique_lock<std::mutex> lk{mtx};
+    std::unique_lock<std::mutex> lk{request_mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onError(message);
@@ -239,6 +297,14 @@ class Session {
 auto session_init(Config config) -> void * {
   auto *session = new Session();
   session->config = config;
+  for (int i = 0; i < 3; i++) {
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+      std::cerr << "Unable to init easy handle!" << std::endl;
+      return nullptr;
+    }
+    session->handles.push_back(curl);
+  }
   CURLM *multi_handle = curl_multi_init();
   // enable HTTP2 multiplexing by default
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
@@ -282,12 +348,17 @@ auto session_init(Config config) -> void * {
   return session;
 }
 
+// You should only call this function when you ensure all requests has
+// completed.
 auto session_terminate(void *p) -> void {
   auto *session = static_cast<Session *>(p);
   session->should_exit = true;
   if (session->worker->joinable()) session->worker->join();
   session->worker = nullptr;
   curl_multi_cleanup(session->multi_handle);
+  for (auto handle : session->handles) {
+    curl_easy_cleanup(handle);
+  }
   delete session;
 }
 
