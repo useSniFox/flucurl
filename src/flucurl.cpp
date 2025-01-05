@@ -14,7 +14,6 @@
 #include <unordered_map>
 #include <vector>
 
-
 #ifdef _WIN32
 #include "build/vcpkg_installed/x64-windows/include/curl/curl.h"
 #include "build/vcpkg_installed/x64-windows/include/curl/easy.h"
@@ -34,8 +33,8 @@ using namespace std::chrono;
 class HTTPMemoryManager {
  public:
   HTTPMemoryManager(size_t headerBufferSize, size_t bodyBufferSize)
-      : headerPool(headerBufferSize * headerBufferCount, &headerUpstream),
-        bodyPool(bodyBufferSize * bodyBufferCount, &bodyUpstream),
+      : headerPool(&headerUpstream),
+        bodyPool(&bodyUpstream),
         headerResource(&headerPool),
         bodyResource(&bodyPool) {}
 
@@ -60,8 +59,8 @@ class HTTPMemoryManager {
   std::pmr::unsynchronized_pool_resource headerUpstream;
   std::pmr::unsynchronized_pool_resource bodyUpstream;
 
-  std::pmr::monotonic_buffer_resource headerPool;
-  std::pmr::monotonic_buffer_resource bodyPool;
+  std::pmr::unsynchronized_pool_resource headerPool;
+  std::pmr::unsynchronized_pool_resource bodyPool;
   std::pmr::polymorphic_allocator<char> headerResource;
   std::pmr::polymorphic_allocator<char> bodyResource;
 };
