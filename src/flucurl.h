@@ -86,7 +86,8 @@ typedef void (*DataHandler)(const BodyData);
 
 typedef void (*ErrorHandler)(const char *message);
 
-FFI_PLUGIN_EXPORT void global_init();
+FFI_PLUGIN_EXPORT void flucurl_global_init();
+FFI_PLUGIN_EXPORT void flucurl_global_deinit();
 
 FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response);
 FFI_PLUGIN_EXPORT void flucurl_free_bodydata(const char *);

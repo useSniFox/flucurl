@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <mutex>
 #include <random>
 #include <sstream>
 #include <string>
@@ -23,7 +24,6 @@
 #endif
 
 using namespace std::chrono;
-
 uint32_t rng(uint32_t min, uint32_t max) {
   static std::random_device rd;
   static auto gen =
@@ -54,7 +54,6 @@ struct RequestTaskData {
 size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   size_t total_size = size * nmemb;
   auto *body_ptr = static_cast<char *>(ptr);
-  std::cout << "chunk size: " << total_size << std::endl;
   auto *data = new char[total_size];
   std::copy(body_ptr, body_ptr + total_size, data);
 
@@ -73,15 +72,12 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   size_t total_size = size * nmemb;
   auto *header_line = static_cast<char *>(ptr);
   if (total_size < 2 || strncmp(header_line, "\r\n", 2) == 0) {
-    // header finish
-
     auto *header = new Field[header_data->header_entries.size()];
     std::copy(header_data->header_entries.begin(),
               header_data->header_entries.end(), header);
     header_data->response.headers = header;
     header_data->response.header_count = header_data->header_entries.size();
     header_data->callback(header_data->response);
-    std::cout << "Header Finished" << std::endl;
     return total_size;
   }
   if (!header_data->response.status) {
@@ -115,7 +111,6 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   std::copy(pos + 2, header_line + total_size - 2, value);
   value[value_len] = '\0';
 
-  std::cout << key << " " << value << std::endl;
   header_data->header_entries.emplace_back(key, value);
 
   return total_size;
@@ -124,6 +119,7 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
 class Session {
  public:
   std::unordered_map<CURL *, RequestTaskData *> requests;
+  std::mutex mtx;
   CURLM *multi_handle = nullptr;
   std::unique_ptr<std::thread> worker;
   bool should_exit = false;
@@ -144,6 +140,7 @@ class Session {
     data->callback = callback;
     data->request = request;
     data->response = {};
+    std::unique_lock<std::mutex> lk{mtx};
 
     requests[curl] = data;
 
@@ -166,10 +163,12 @@ class Session {
   }
 
   void remove_request(CURL *curl) {
+    std::unique_lock<std::mutex> lk{mtx};
+
     auto it = requests.find(curl);
     if (it != requests.end()) {
-      requests.erase(it);
       delete it->second;
+      requests.erase(it);
       curl_multi_remove_handle(multi_handle, curl);
       curl_easy_cleanup(curl);
     }
@@ -179,6 +178,8 @@ class Session {
   ~Session() {}
 
   void report_done(CURL *curl) {
+    std::unique_lock<std::mutex> lk{mtx};
+
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onData({nullptr, 0});
@@ -186,6 +187,7 @@ class Session {
   }
 
   void report_error(CURL *curl, const char *message) {
+    std::unique_lock<std::mutex> lk{mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onError(message);
@@ -200,6 +202,10 @@ auto session_init(Config config) -> void * {
     do {
       CURLMcode mc =
           curl_multi_perform(session->multi_handle, &session->running_handles);
+      if (mc != CURLM_OK) {
+        std::cout << "Multi error: " << curl_multi_strerror(mc) << std::endl;
+        std::exit(1);
+      }
       // Check if there are completed messages
       CURLMsg *msg;
       int msgs_left;
@@ -234,10 +240,10 @@ auto session_init(Config config) -> void * {
 
 auto session_terminate(void *p) -> void {
   auto *session = static_cast<Session *>(p);
-  curl_multi_cleanup(session->multi_handle);
   session->should_exit = true;
   if (session->worker->joinable()) session->worker->join();
   session->worker = nullptr;
+  curl_multi_cleanup(session->multi_handle);
   delete session;
 }
 
@@ -247,7 +253,7 @@ void session_send_request(void *p, Request request, ResponseCallback callback,
   session->add_request(request, callback, onData, onError);
 }
 
-void global_init() {
+void flucurl_global_init() {
   int ret = curl_global_init(CURL_GLOBAL_ALL);
   if (ret != CURLE_OK) {
     std::cout << "Unable to initialize curl" << std::endl;
@@ -255,6 +261,8 @@ void global_init() {
     std::cout << "Curl initialized" << std::endl;
   }
 }
+
+void flucurl_global_deinit() { curl_global_cleanup(); }
 
 void flucurl_free_reponse(Response p) {
   for (int i = 0; i < p.header_count; i++) {
