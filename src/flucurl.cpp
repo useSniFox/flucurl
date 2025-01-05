@@ -15,13 +15,15 @@
 #ifdef _WIN32
 #include "build/vcpkg_installed/x64-windows/include/curl/curl.h"
 #include "build/vcpkg_installed/x64-windows/include/curl/easy.h"
-#include "build/vcpkg_installed/x64-windows/include/curl/urlapi.h"
 #include "build/vcpkg_installed/x64-windows/include/curl/multi.h"
+#include "build/vcpkg_installed/x64-windows/include/curl/urlapi.h"
+
 #else
 #include <curl/curl.h>
 #include <curl/easy.h>
-#include <curl/urlapi.h>
 #include <curl/multi.h>
+#include <curl/urlapi.h>
+
 #endif
 
 using namespace std::chrono;
@@ -131,6 +133,11 @@ class Session {
 
   // you should lock outside
   void return_handle(CURL *curl) {
+    // when there is too many idle handles
+    if (handles.size() > 15) {
+      curl_easy_cleanup(curl);
+      return;
+    }
     curl_easy_reset(curl);
     handles.push_back(curl);
   }
@@ -256,6 +263,14 @@ class Session {
 auto session_init(Config config) -> void * {
   auto *session = new Session();
   session->config = config;
+  for (int i = 0; i < 3; i++) {
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+      std::cerr << "Unable to init easy handle!" << std::endl;
+      return nullptr;
+    }
+    session->handles.push_back(curl);
+  }
   CURLM *multi_handle = curl_multi_init();
   // enable HTTP2 multiplexing by default
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
