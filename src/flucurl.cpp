@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <memory_resource>
 #include <mutex>
 #include <random>
 #include <sstream>
@@ -12,6 +13,7 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
 
 #ifdef _WIN32
 #include "build/vcpkg_installed/x64-windows/include/curl/curl.h"
@@ -27,7 +29,43 @@
 
 #endif
 
+class Session;
 using namespace std::chrono;
+class HTTPMemoryManager {
+ public:
+  HTTPMemoryManager(size_t headerBufferSize, size_t bodyBufferSize)
+      : headerPool(headerBufferSize * headerBufferCount, &headerUpstream),
+        bodyPool(bodyBufferSize * bodyBufferCount, &bodyUpstream),
+        headerResource(&headerPool),
+        bodyResource(&bodyPool) {}
+
+  void *allocateHeader(size_t size) { return headerResource.allocate(size); }
+
+  void deallocateHeader(char *ptr, size_t size) {
+    headerResource.deallocate(ptr, size);
+  }
+
+  void *allocateBody(size_t size) { return bodyResource.allocate(size); }
+
+  void deallocateBody(char *ptr, size_t size) {
+    bodyResource.deallocate(ptr, size);
+  }
+  ~HTTPMemoryManager() { std::cout << "memory manager destructed\n"; }
+
+ private:
+  static constexpr size_t headerBufferCount = 1024;
+  static constexpr size_t bodyBufferCount = 1024;
+
+  // Upstream resources to handle overflow
+  std::pmr::unsynchronized_pool_resource headerUpstream;
+  std::pmr::unsynchronized_pool_resource bodyUpstream;
+
+  std::pmr::monotonic_buffer_resource headerPool;
+  std::pmr::monotonic_buffer_resource bodyPool;
+  std::pmr::polymorphic_allocator<char> headerResource;
+  std::pmr::polymorphic_allocator<char> bodyResource;
+};
+
 uint32_t rng(uint32_t min, uint32_t max) {
   static std::random_device rd;
   static auto gen =
@@ -44,7 +82,6 @@ std::string generate_request_id(Request const &r) {
           << '-' << rng(0, 0xFFFFFFFF);
   return builder.str();
 }
-
 struct RequestTaskData {
   std::vector<Field> header_entries;
   Request request;
@@ -52,73 +89,12 @@ struct RequestTaskData {
   DataHandler onData;
   ErrorHandler onError;
   Response response;
+  Session *session;
 };
 
-// 回调函数，用于处理响应数据
-size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
-  size_t total_size = size * nmemb;
-  auto *body_ptr = static_cast<char *>(ptr);
-  auto *data = new char[total_size];
-  std::copy(body_ptr, body_ptr + total_size, data);
+size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 
-  auto *cb_data = static_cast<RequestTaskData *>(userdata);
-  BodyData body_data;
-  body_data.data = data;
-  body_data.size = total_size;
-  cb_data->onData(body_data);
-  return total_size;
-}
-
-// 回调函数：处理 HTTP 响应头
-size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
-  auto *header_data = static_cast<RequestTaskData *>(userdata);
-
-  size_t total_size = size * nmemb;
-  auto *header_line = static_cast<char *>(ptr);
-  if (total_size < 2 || strncmp(header_line, "\r\n", 2) == 0) {
-    auto *header = new Field[header_data->header_entries.size()];
-    std::copy(header_data->header_entries.begin(),
-              header_data->header_entries.end(), header);
-    header_data->response.headers = header;
-    header_data->response.header_count = header_data->header_entries.size();
-    header_data->callback(header_data->response);
-    return total_size;
-  }
-  if (!header_data->response.status) {
-    std::cout << header_line << std::endl;
-    std::istringstream sin(header_line);
-    std::string version;
-    int status_code;
-    sin >> version >> status_code;
-    header_data->response.status = status_code;
-    if (version == "HTTP/1.1") {
-      header_data->response.http_version = HTTP1_1;
-    } else if (version == "HTTP/2") {
-      header_data->response.http_version = HTTP2;
-    } else if (version == "HTTP/3") {
-      header_data->response.http_version = HTTP3;
-    } else {
-      header_data->response.http_version = HTTP1_0;
-    }
-    return total_size;
-  }
-
-  auto *pos = std::find(header_line, header_line + total_size, ':');
-
-  int key_len = pos - header_line;
-  char *key = new char[key_len + 1];
-  std::copy(header_line, pos, key);
-  key[key_len] = '\0';
-
-  int value_len = total_size - key_len - 4;
-  char *value = new char[value_len + 1];
-  std::copy(pos + 2, header_line + total_size - 2, value);
-  value[value_len] = '\0';
-
-  header_data->header_entries.push_back({.key = key, .value = value});
-
-  return total_size;
-}
+size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 
 template <typename T>
 class ObjectPool {
@@ -142,10 +118,12 @@ class ObjectPool {
       delete item;
       return;
     }
+    *item = {};
     items.push_back(item);
   }
   ObjectPool(int32_t max_size = 15) : max_size(max_size) {}
   ~ObjectPool() {
+    std::cout << "destruct object pool\n";
     for (auto item : items) {
       delete item;
     }
@@ -177,6 +155,7 @@ class Session {
   ObjectPool<RequestTaskData> request_task_pool;
 
  public:
+  HTTPMemoryManager memory_manager;
   std::unordered_map<CURL *, RequestTaskData *> requests;
   std::mutex request_mtx, handle_mtx;
   CURLM *multi_handle = nullptr;
@@ -196,11 +175,13 @@ class Session {
     }
 
     auto *data = request_task_pool.acquire_item();
+    data->session = this;
     data->onData = onData;
     data->onError = onError;
     data->callback = callback;
     data->request = request;
     data->response = {};
+    data->response.session = this;
 
     // set header receive callback
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
@@ -274,7 +255,8 @@ class Session {
     }
   }
 
-  Session() {}
+  Session() : memory_manager(64, 1024) {}
+
   ~Session() {}
 
   void report_done(CURL *curl) {
@@ -294,10 +276,10 @@ class Session {
   }
 };
 
-auto session_init(Config config) -> void * {
+auto flucurl_session_init(Config config) -> void * {
   auto *session = new Session();
   session->config = config;
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 5; i++) {
     CURL *curl = curl_easy_init();
     if (!curl) {
       std::cerr << "Unable to init easy handle!" << std::endl;
@@ -350,7 +332,7 @@ auto session_init(Config config) -> void * {
 
 // You should only call this function when you ensure all requests has
 // completed.
-auto session_terminate(void *p) -> void {
+auto flucurl_session_terminate(void *p) -> void {
   auto *session = static_cast<Session *>(p);
   session->should_exit = true;
   if (session->worker->joinable()) session->worker->join();
@@ -362,8 +344,9 @@ auto session_terminate(void *p) -> void {
   delete session;
 }
 
-void session_send_request(void *p, Request request, ResponseCallback callback,
-                          DataHandler onData, ErrorHandler onError) {
+void flucurl_session_send_request(void *p, Request request,
+                                  ResponseCallback callback, DataHandler onData,
+                                  ErrorHandler onError) {
   auto *session = static_cast<Session *>(p);
   session->add_request(request, callback, onData, onError);
 }
@@ -379,11 +362,84 @@ void flucurl_global_init() {
 
 void flucurl_global_deinit() { curl_global_cleanup(); }
 
-void flucurl_free_reponse(Response p) {
-  for (int i = 0; i < p.header_count; i++) {
-    delete[] p.headers[i].key;
-    delete[] p.headers[i].value;
+void flucurl_free_reponse(Response response) {
+  auto session = static_cast<Session *>(response.session);
+  for (int i = 0; i < response.header_count; i++) {
+    auto header = response.headers[i];
+    session->memory_manager.deallocateHeader(
+        header.kv, header.key_len + header.value_len + 2);
   }
-  delete[] p.headers;
+  delete[] response.headers;
 }
-void flucurl_free_bodydata(const char *p) { delete[] p; }
+void flucurl_free_bodydata(BodyData body_data) {
+  auto *session = static_cast<Session *>(body_data.session);
+  session->memory_manager.deallocateBody(body_data.data, body_data.size);
+}
+
+size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
+  auto *cb_data = static_cast<RequestTaskData *>(userdata);
+  size_t total_size = size * nmemb;
+  auto *body_ptr = static_cast<char *>(ptr);
+  auto *data = cb_data->session->memory_manager.allocateBody(total_size);
+  std::copy(body_ptr, body_ptr + total_size, static_cast<char *>(data));
+
+  BodyData body_data;
+  body_data.session = cb_data->session;
+  body_data.data = static_cast<char *>(data);
+  body_data.size = total_size;
+  cb_data->onData(body_data);
+  return total_size;
+}
+
+size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
+  auto *header_data = static_cast<RequestTaskData *>(userdata);
+
+  size_t total_size = size * nmemb;
+  auto *header_line = static_cast<char *>(ptr);
+  if (total_size < 2 || strncmp(header_line, "\r\n", 2) == 0) {
+    auto *header = new Field[header_data->header_entries.size()];
+    std::copy(header_data->header_entries.begin(),
+              header_data->header_entries.end(), header);
+    header_data->response.headers = header;
+    header_data->response.header_count = header_data->header_entries.size();
+    header_data->callback(header_data->response);
+    return total_size;
+  }
+  if (!header_data->response.status) {
+    std::cout << header_line << std::endl;
+    std::istringstream sin(header_line);
+    std::string version;
+    int status_code;
+    sin >> version >> status_code;
+    header_data->response.status = status_code;
+    if (version == "HTTP/1.1") {
+      header_data->response.http_version = HTTP1_1;
+    } else if (version == "HTTP/2") {
+      header_data->response.http_version = HTTP2;
+    } else if (version == "HTTP/3") {
+      header_data->response.http_version = HTTP3;
+    } else {
+      header_data->response.http_version = HTTP1_0;
+    }
+    return total_size;
+  }
+
+  auto *pos = std::find(header_line, header_line + total_size, ':');
+
+  int key_len = pos - header_line;
+  int value_len = total_size - key_len - 4;
+
+  void *data = header_data->session->memory_manager.allocateHeader(
+      key_len + value_len + 2);
+  char *header_kv = static_cast<char *>(data);
+  std::copy(header_line, pos, header_kv);
+  header_kv[key_len] = '\0';
+
+  std::copy(pos + 2, header_line + total_size - 2, header_kv + key_len + 1);
+  header_kv[key_len + value_len + 1] = '\0';
+
+  header_data->header_entries.push_back(
+      {.kv = header_kv, .key_len = key_len, .value_len = value_len});
+
+  return total_size;
+}

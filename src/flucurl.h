@@ -10,8 +10,9 @@
 extern "C" {
 #endif
 typedef struct Field {
-  char *key;
-  char *value;
+  char *kv;
+  int key_len;
+  int value_len;
 } Field;
 
 typedef struct Request {
@@ -21,6 +22,7 @@ typedef struct Request {
   int content_length;
   Field *headers;
   int header_count;
+  const char *resolved_ip;
 } Request;
 
 enum HTTPVersion { HTTP1_0, HTTP1_1, HTTP2, HTTP3 };
@@ -30,9 +32,8 @@ typedef struct Response {
   int status;
   Field *headers;
   int header_count;
+  void *session;
 } Response;
-
-typedef char *(*DNSResolver)(const char *host);
 
 typedef struct TLSConfig {
   int enable;
@@ -62,10 +63,6 @@ typedef struct Config {
   /// - scheme://user:password@host:port
   char *proxy;
 
-  /// DNS resolver function. If null or returns null, the system default
-  /// resolver will be used.
-  DNSResolver *dns_resolver;
-
   /// TLS configuration.
   TLSConfig *tls_config;
 
@@ -77,13 +74,14 @@ typedef struct Config {
 } Config;
 
 typedef struct BodyData {
-  const char *data;
+  char *data;
   int size;
+  void *session;
 } BodyData;
 
 typedef void (*ResponseCallback)(Response);
 
-typedef void (*DataHandler)(const BodyData);
+typedef void (*DataHandler)(BodyData);
 
 typedef void (*ErrorHandler)(const char *message);
 
@@ -91,14 +89,15 @@ FFI_PLUGIN_EXPORT void flucurl_global_init();
 FFI_PLUGIN_EXPORT void flucurl_global_deinit();
 
 FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response);
-FFI_PLUGIN_EXPORT void flucurl_free_bodydata(const char *);
+FFI_PLUGIN_EXPORT void flucurl_free_bodydata(BodyData body_data);
 
-FFI_PLUGIN_EXPORT void *session_init(Config config);
-FFI_PLUGIN_EXPORT void session_terminate(void *session);
-FFI_PLUGIN_EXPORT void session_send_request(void *session, Request request,
-                                            ResponseCallback callback,
-                                            DataHandler onData,
-                                            ErrorHandler onError);
+FFI_PLUGIN_EXPORT void *flucurl_session_init(Config config);
+FFI_PLUGIN_EXPORT void flucurl_session_terminate(void *session);
+FFI_PLUGIN_EXPORT void flucurl_session_send_request(void *session,
+                                                    Request request,
+                                                    ResponseCallback callback,
+                                                    DataHandler onData,
+                                                    ErrorHandler onError);
 #ifdef __cplusplus
 }
 #endif
