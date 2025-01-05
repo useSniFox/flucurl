@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <sstream>
@@ -117,10 +118,28 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
 }
 
 class Session {
+  // you should lock outside
+  CURL *acquire_handle() {
+    if (handles.empty()) {
+      CURL *curl = curl_easy_init();
+      return curl;
+    }
+    CURL *curl = handles.back();
+    handles.pop_back();
+    return curl;
+  }
+
+  // you should lock outside
+  void return_handle(CURL *curl) {
+    curl_easy_reset(curl);
+    handles.push_back(curl);
+  }
+
  public:
   std::unordered_map<CURL *, RequestTaskData *> requests;
-  std::mutex mtx;
+  std::mutex request_mtx, handle_mtx;
   CURLM *multi_handle = nullptr;
+  std::vector<CURL *> handles;
   std::unique_ptr<std::thread> worker;
   bool should_exit = false;
   int running_handles = 0;
@@ -128,7 +147,8 @@ class Session {
 
   void add_request(Request request, ResponseCallback callback,
                    DataHandler onData, ErrorHandler onError) {
-    CURL *curl = curl_easy_init();
+    std::unique_lock<std::mutex> lk{request_mtx};
+    CURL *curl = acquire_handle();
     if (curl == nullptr) {
       onError("Unable to initialize curl");
       return;
@@ -140,7 +160,6 @@ class Session {
     data->callback = callback;
     data->request = request;
     data->response = {};
-    std::unique_lock<std::mutex> lk{mtx};
 
     // set header receive callback
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
@@ -204,14 +223,13 @@ class Session {
   }
 
   void remove_request(CURL *curl) {
-    std::unique_lock<std::mutex> lk{mtx};
-
+    std::unique_lock<std::mutex> lk{request_mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       delete it->second;
       requests.erase(it);
       curl_multi_remove_handle(multi_handle, curl);
-      curl_easy_cleanup(curl);
+      return_handle(curl);
     }
   }
 
@@ -219,8 +237,7 @@ class Session {
   ~Session() {}
 
   void report_done(CURL *curl) {
-    std::unique_lock<std::mutex> lk{mtx};
-
+    std::unique_lock<std::mutex> lk{request_mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onData({nullptr, 0});
@@ -228,7 +245,7 @@ class Session {
   }
 
   void report_error(CURL *curl, const char *message) {
-    std::unique_lock<std::mutex> lk{mtx};
+    std::unique_lock<std::mutex> lk{request_mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onError(message);
@@ -282,12 +299,17 @@ auto session_init(Config config) -> void * {
   return session;
 }
 
+// You should only call this function when you ensure all requests has
+// completed.
 auto session_terminate(void *p) -> void {
   auto *session = static_cast<Session *>(p);
   session->should_exit = true;
   if (session->worker->joinable()) session->worker->join();
   session->worker = nullptr;
   curl_multi_cleanup(session->multi_handle);
+  for (auto handle : session->handles) {
+    curl_easy_cleanup(handle);
+  }
   delete session;
 }
 
