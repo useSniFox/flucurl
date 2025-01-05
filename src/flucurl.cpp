@@ -11,16 +11,16 @@
 #include <unordered_map>
 #include <vector>
 
-#include "build/vcpkg_installed/x64-windows/include/curl/multi.h"
-
 #ifdef _WIN32
 #include "build/vcpkg_installed/x64-windows/include/curl/curl.h"
 #include "build/vcpkg_installed/x64-windows/include/curl/easy.h"
 #include "build/vcpkg_installed/x64-windows/include/curl/urlapi.h"
+#include "build/vcpkg_installed/x64-windows/include/curl/multi.h"
 #else
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <curl/urlapi.h>
+#include <curl/multi.h>
 #endif
 
 using namespace std::chrono;

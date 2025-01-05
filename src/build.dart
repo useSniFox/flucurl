@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:math';
 
+import 'package:archive/archive_io.dart';
 import 'package:dio/dio.dart';
 import 'package:crypto/crypto.dart';
 late String platform;
@@ -15,7 +17,7 @@ void main(List<String> args) async {
   Directory.current = 'src';
   var compiler = args[1];
   var generator = args[2];
-  var cmakeRoot = args[3];
+  var cmakeRoot = args.elementAtOrNull(3) ?? "cmake";
   var buildDir = Directory('build');
   if (buildDir.existsSync()) {
     buildDir.deleteSync(recursive: true);
@@ -70,6 +72,36 @@ void main(List<String> args) async {
       stderr.writeln(result.stderr);
       exit(result.exitCode);
     }
+  } else if (platform == "android") {
+    var aar = File('curl.zip');
+    const sha256Result = "D3F8B73BDF8368A74D14ADC169225E013D257C16919E529E7D7A2BB93A68513E";
+    if (aar.existsSync()) {
+      final bytes = await aar.readAsBytes();
+      final hash = sha256.convert(bytes).toString().toUpperCase();
+      if (hash != sha256Result) {
+        aar.deleteSync();
+      } else {
+        stdout.writeln('curl $curlVersion already downloaded');
+      }
+    }
+    if (!aar.existsSync()) {
+      stdout.writeln('Downloading curl $curlVersion...');
+      final url = "https://github.com/useSniFox/curl-android/releases/download/v8.11.1/curl-8.11.1.aar";
+      await Dio().download(url, 'curl.zip');
+    }
+    var curlDir = Directory('curl');
+    if (curlDir.existsSync()) {
+      curlDir.deleteSync(recursive: true);
+    }
+    await extractFileToDisk(aar.path, 'curl');
+    var libDir = Directory('curl/lib');
+    var includeDir = Directory('curl/include');
+    libDir.createSync();
+    includeDir.createSync();
+    for (var moduleDir in Directory('curl/prefab/modules').listSync()) {
+      copyDirectory(Directory("${moduleDir.path}/include"), includeDir);
+      copyDirectory(Directory("${moduleDir.path}/libs"), libDir);
+    }
   } else {
     throw 'Unsupported platform: $platform';
   }
@@ -106,4 +138,25 @@ void findVcpkg() {
 }
 ''';
   File('CMakeUserPresets.json').writeAsStringSync(content);
+}
+
+extension FileExt on FileSystemEntity {
+  String get name{
+    var index = max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+    return path.substring(index + 1);
+  }
+}
+
+void copyDirectory(Directory source, Directory destination) {
+  for (var entity in source.listSync()) {
+    if (entity is File) {
+      entity.copySync('${destination.path}/${entity.name}');
+    } else if (entity is Directory) {
+      var newDir = Directory('${destination.path}/${entity.name}');
+      if (!newDir.existsSync()) {
+        newDir.createSync();
+      }
+      copyDirectory(entity, newDir);
+    }
+  }
 }

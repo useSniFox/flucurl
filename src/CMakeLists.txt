@@ -6,39 +6,54 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_ENABLE_EXPORTS ON)
 set(CMAKE_ENABLE_DEBUG_INFO ON)
 
-set(CMAKE_CXX_STANDARD 20)
-project(flucurl_library VERSION 0.0.1 LANGUAGES CXX)
+set(ANDROID CMAKE_SYSTEM_NAME STREQUAL "Android")
 
 if (ANDROID)
-  message(INFO " NDK: ${ANDROID_NDK}")
-  set(ENV{ANDROID_NDK_HOME} "${ANDROID_NDK}")
-  set(VCPKG_CRT_LINKAGE dynamic)
-  set(VCPKG_LIBRARY_LINKAGE static)
-  set(VCPKG_CMAKE_SYSTEM_NAME Android)
-  set(VCPKG_CMAKE_SYSTEM_VERSION 21)
-  if (ANDROID_ABI STREQUAL "armeabi-v7a")
-    set(VCPKG_TARGET_TRIPLET "arm-neon-android")
-  elseif (ANDROID_ABI STREQUAL "arm64-v8a")
-    set(VCPKG_TARGET_TRIPLET "arm64-android")
-  elseif (ANDROID_ABI STREQUAL "x86_64")
-    set(VCPKG_TARGET_TRIPLET "x64-android")
+  if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+    set(DART_NAME "dart.bat")
   else()
-    message(FATAL_ERROR "Unsupported ANDROID_ABI: ${ANDROID_ABI}")
-    # stop processing
-    return()
+    set(DART_NAME "dart")
   endif()
-  include($ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
-  set(ANDROID_CPP_FEATURES "rtti exceptions")
-  set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)
+
+  find_program(DART_EXECUTABLE ${DART_NAME})
+
+  execute_process(
+    COMMAND "${DART_EXECUTABLE}" pub get
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    RESULT_VARIABLE result
+  )
+  if(NOT result EQUAL 0)
+    message(FATAL_ERROR "Failed to run pub get. Exit code: ${result}")
+  endif()
+
+  execute_process(
+    COMMAND "${DART_EXECUTABLE}" run src/build.dart android ${CMAKE_CXX_COMPILER} ${CMAKE_GENERATOR} ${CMAKE_COMMAND}
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    RESULT_VARIABLE result
+  )
+  if(NOT result EQUAL 0)
+    message(FATAL_ERROR "Failed to run build.dart. Status code: ${result}")
+  endif()
 endif()
 
-if (UNIX) 
+set(CMAKE_CXX_STANDARD 20 REQUIRED)
+project(flucurl_library VERSION 0.0.1 LANGUAGES CXX)
+
+if (LINUX) 
   set(CURL_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/curl-x86_64/lib")
   set(CURL_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/curl-x86_64/include")
   include_directories(${CURL_INCLUDE_DIR})
+elseif (ANDROID)
+  set(CURL_LIB_ARCH "${ANDROID_ABI}")
+  if (NOT "${CURL_LIB_ARCH}" MATCHES "armeabi-v7a|arm64-v8a|x86_64")
+    message(FATAL_ERROR "Invalid ANDROID_ABI value: ${CURL_LIB_ARCH}")
+  endif()
+  set(CURL_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/curl/lib/android.${CURL_LIB_ARCH}")
+  set(CURL_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/curl/include")
+  include_directories(${CURL_INCLUDE_DIR})
 endif()
 
-if (WIN32 OR ANDROID)
+if (WIN32)
   find_package(CURL REQUIRED)
 endif()
 add_library(flucurl SHARED
@@ -52,9 +67,9 @@ set_target_properties(flucurl PROPERTIES
 
 target_compile_definitions(flucurl PUBLIC DART_SHARED_LIB)
 
-if (WIN32 OR ANDROID)
+if (WIN32)
   target_link_libraries(flucurl PRIVATE CURL::libcurl)
-else(UNIX)
+elseif (LINUX OR ANDROID)
   file(GLOB CURL_LIBS "${CURL_LIB_DIR}/*.a")
   target_link_libraries(flucurl PRIVATE ${CURL_LIBS})
 endif()
