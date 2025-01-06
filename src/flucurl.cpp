@@ -413,3 +413,62 @@ size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   data->len = 0;
   return data->len;
 }
+
+size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
+  auto *cb_data = static_cast<TaskData *>(userdata);
+  size_t total_size = size * nmemb;
+  auto *body_ptr = static_cast<char *>(ptr);
+  auto *data = cb_data->session->memory_manager.allocateBody(total_size);
+  std::copy(body_ptr, body_ptr + total_size, static_cast<char *>(data));
+
+  BodyData body_data;
+  body_data.session = cb_data->session;
+  body_data.data = static_cast<char *>(data);
+  body_data.size = total_size;
+  cb_data->onData(body_data);
+  return total_size;
+}
+
+size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
+  auto *header_data = static_cast<TaskData *>(userdata);
+  int total_size = size * nmemb;
+  auto *header_line = static_cast<char *>(ptr);
+  if (strncmp(header_line, "\r\n", 2) == 0) {
+    auto *header = new Field[header_data->header_entries.size()];
+    std::copy(header_data->header_entries.begin(),
+              header_data->header_entries.end(), header);
+    header_data->response.headers = header;
+    header_data->response.header_count = header_data->header_entries.size();
+    header_data->callback(header_data->response);
+    return total_size;
+  }
+  if (!header_data->response.status) {
+    std::cout << header_line << std::endl;
+    std::istringstream sin(header_line);
+    std::string version;
+    int status_code;
+    sin >> version >> status_code;
+    header_data->response.status = status_code;
+    if (version == "HTTP/1.1") {
+      header_data->response.http_version = HTTP1_1;
+    } else if (version == "HTTP/2") {
+      header_data->response.http_version = HTTP2;
+    } else if (version == "HTTP/3") {
+      header_data->response.http_version = HTTP3;
+    } else {
+      header_data->response.http_version = HTTP1_0;
+    }
+    return total_size;
+  }
+
+  void *data =
+      header_data->session->memory_manager.allocateHeader(total_size - 2);
+  char *header_kv = static_cast<char *>(data);
+
+  std::copy(header_line, header_line + total_size - 2, header_kv);
+
+  header_data->header_entries.push_back(
+      {.p = header_kv, .len = total_size - 2});
+
+  return total_size;
+}
