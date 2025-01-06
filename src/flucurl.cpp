@@ -7,6 +7,7 @@
 #include <memory>
 #include <memory_resource>
 #include <mutex>
+#include <queue>
 #include <random>
 #include <sstream>
 #include <string>
@@ -226,6 +227,9 @@ class Session {
     if (it != requests.end()) {
       auto mtx = static_cast<std::mutex *>(it->second->upload_state->mtx);
       delete mtx;
+      auto queue =
+          static_cast<std::queue<Field> *>(it->second->upload_state->queue);
+      delete queue;
       delete it->second->upload_state;
       request_task_pool.release_item(it->second);
       requests.erase(it);
@@ -402,17 +406,43 @@ void flucurl_lock_upload(UploadState s) {
   mtx->lock();
 }
 
+void flucurl_resume_upload(UploadState s) {
+  s.pause = false;
+  curl_easy_pause(s.curl, CURLPAUSE_CONT);
+}
+
 size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
-  auto data = static_cast<UploadState *>(userdata);
-  auto mtx = static_cast<std::mutex *>(data->mtx);
-  if (!data->len) {
+  size_t total_size = size * nmemb;
+  auto state = static_cast<UploadState *>(userdata);
+  auto mtx = static_cast<std::mutex *>(state->mtx);
+  auto queue = static_cast<std::queue<Field> *>(state->queue);
+  auto session = static_cast<Session *>(state->session);
+  std::unique_lock lk{*mtx};
+  auto field = queue->front();
+  if (!field.p) {
     return 0;
   }
+  size_t remaining = field.len - state->cur;
+  if (!remaining) {
+    state->pause = true;
+    return CURL_READFUNC_PAUSE;
+  }
   auto dest = static_cast<char *>(ptr);
-  std::unique_lock lk{*mtx};
-  std::copy(data->buffer, data->buffer + data->len, dest);
-  data->len = 0;
-  return data->len;
+  size_t len = std::min(total_size, remaining);
+  std::copy(field.p + state->cur, field.p + state->cur + len, dest);
+  state->cur += len;
+  if (state->cur >= field.len) {
+    session->config.free_dart_memory(field.p);
+    state->cur = 0;
+    queue->pop();
+  }
+  return len;
+}
+void flucurl_upload_append(UploadState s, Field f) {
+  auto mtx = static_cast<std::mutex *>(s.mtx);
+  auto queue = static_cast<std::queue<Field> *>(s.queue);
+  std::unique_lock<std::mutex> lk{*mtx};
+  queue->push(f);
 }
 
 size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {

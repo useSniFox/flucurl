@@ -70,6 +70,8 @@ typedef struct Config {
   int keep_alive;
   int idle_timeout;
 
+  void (*free_dart_memory)(void *);
+
 } Config;
 
 typedef struct BodyData {
@@ -80,10 +82,11 @@ typedef struct BodyData {
 
 typedef struct UploadState {
   void *session;
-  char *buffer;
+  void *queue;
+  void *curl;
+  int pause;
   void *mtx;
-  int len;
-
+  size_t cur;
 } UploadState;
 
 typedef void (*ResponseCallback)(Response);
@@ -94,8 +97,12 @@ typedef void (*ErrorHandler)(const char *message);
 
 FFI_PLUGIN_EXPORT void flucurl_global_init();
 FFI_PLUGIN_EXPORT void flucurl_global_deinit();
+
 FFI_PLUGIN_EXPORT void flucurl_unlock_upload(UploadState);
 FFI_PLUGIN_EXPORT void flucurl_lock_upload(UploadState);
+
+FFI_PLUGIN_EXPORT void flucurl_resume_upload(UploadState);
+FFI_PLUGIN_EXPORT void flucurl_upload_append(UploadState, Field);
 
 FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response);
 FFI_PLUGIN_EXPORT void flucurl_free_bodydata(BodyData body_data);
