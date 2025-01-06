@@ -78,18 +78,19 @@ std::string generate_request_id(Request const &r) {
           << '-' << rng(0, 0xFFFFFFFF);
   return builder.str();
 }
-struct RequestTaskData {
-  std::vector<Field> header_entries;
-  Request request;
-  ResponseCallback callback;
-  DataHandler onData;
-  ErrorHandler onError;
-  Response response;
-  Session *session;
+struct TaskData {
+  std::vector<Field> header_entries = {};
+  Request request = {};
+  ResponseCallback callback = {};
+  DataHandler onData = {};
+  ErrorHandler onError = {};
+  Response response = {};
+  Session *session = nullptr;
+  UploadState *upload_state = nullptr;
 };
 
 size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
-
+size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 
 template <typename T>
@@ -145,14 +146,14 @@ class Session {
       curl_easy_cleanup(curl);
       return;
     }
-    curl_easy_reset(curl);
     handles.push_back(curl);
   }
-  ObjectPool<RequestTaskData> request_task_pool;
+  ObjectPool<TaskData> request_task_pool;
 
  public:
+  ObjectPool<UploadState> upload_state_pool;
   HTTPMemoryManager memory_manager;
-  std::unordered_map<CURL *, RequestTaskData *> requests;
+  std::unordered_map<CURL *, TaskData *> requests;
   std::mutex request_mtx, handle_mtx;
   CURLM *multi_handle = nullptr;
   std::vector<CURL *> handles;
@@ -162,13 +163,13 @@ class Session {
   Config config;
   CURL *handle_prototype;
 
-  void add_request(Request request, ResponseCallback callback,
-                   DataHandler onData, ErrorHandler onError) {
+  UploadState *add_request(Request request, ResponseCallback callback,
+                           DataHandler onData, ErrorHandler onError) {
     std::unique_lock<std::mutex> lk{request_mtx};
     CURL *curl = acquire_handle();
     if (curl == nullptr) {
       onError("Unable to initialize curl");
-      return;
+      return nullptr;
     }
 
     auto *data = request_task_pool.acquire_item();
@@ -180,6 +181,14 @@ class Session {
     data->response = {};
     data->response.session = this;
 
+    // set http body
+    auto *state = upload_state_pool.acquire_item();
+    state->mtx = new std::mutex();
+    state->session = this;
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+    curl_easy_setopt(curl, CURLOPT_READDATA, state);
+    data->upload_state = state;
+
     // set header receive callback
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, data);
@@ -188,20 +197,35 @@ class Session {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
 
+    // set http method
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, request.method);
+
+    // set http headers
+    curl_slist *list = nullptr;
+    for (int i = 0; i < request.header_count; i++) {
+      list = curl_slist_append(list, request.headers[i]);
+    }
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+
     CURLcode ret = curl_easy_setopt(curl, CURLOPT_URL, request.url);
     if (ret != CURLE_OK) {
       onError("Unable to set URL");
-      return;
+      return nullptr;
     }
+
     requests[curl] = data;
 
     curl_multi_add_handle(multi_handle, curl);
+    return state;
   }
 
   void remove_request(CURL *curl) {
     std::unique_lock<std::mutex> lk{request_mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
+      auto mtx = static_cast<std::mutex *>(it->second->upload_state->mtx);
+      delete mtx;
+      delete it->second->upload_state;
       request_task_pool.release_item(it->second);
       requests.erase(it);
       curl_multi_remove_handle(multi_handle, curl);
@@ -209,7 +233,7 @@ class Session {
     }
   }
 
-  Session() : memory_manager() {}
+  Session() {}
 
   ~Session() {}
 
@@ -335,11 +359,12 @@ auto flucurl_session_terminate(void *p) -> void {
   delete session;
 }
 
-void flucurl_session_send_request(void *p, Request request,
-                                  ResponseCallback callback, DataHandler onData,
-                                  ErrorHandler onError) {
+UploadState *flucurl_session_send_request(void *p, Request request,
+                                          ResponseCallback callback,
+                                          DataHandler onData,
+                                          ErrorHandler onError) {
   auto *session = static_cast<Session *>(p);
-  session->add_request(request, callback, onData, onError);
+  return session->add_request(request, callback, onData, onError);
 }
 
 void flucurl_global_init() {
@@ -357,8 +382,7 @@ void flucurl_free_reponse(Response response) {
   auto session = static_cast<Session *>(response.session);
   for (int i = 0; i < response.header_count; i++) {
     auto header = response.headers[i];
-    session->memory_manager.deallocateHeader(header.kv,
-                                             header.key_len + header.value_len);
+    session->memory_manager.deallocateHeader(header.p, header.len);
   }
   delete[] response.headers;
 }
@@ -367,68 +391,25 @@ void flucurl_free_bodydata(BodyData body_data) {
   session->memory_manager.deallocateBody(body_data.data, body_data.size);
 }
 
-size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
-  auto *cb_data = static_cast<RequestTaskData *>(userdata);
-  size_t total_size = size * nmemb;
-  auto *body_ptr = static_cast<char *>(ptr);
-  auto *data = cb_data->session->memory_manager.allocateBody(total_size);
-  std::copy(body_ptr, body_ptr + total_size, static_cast<char *>(data));
-
-  BodyData body_data;
-  body_data.session = cb_data->session;
-  body_data.data = static_cast<char *>(data);
-  body_data.size = total_size;
-  cb_data->onData(body_data);
-  return total_size;
+void flucurl_unlock_upload(UploadState s) {
+  auto mtx = static_cast<std::mutex *>(s.mtx);
+  mtx->unlock();
 }
 
-size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
-  auto *header_data = static_cast<RequestTaskData *>(userdata);
+void flucurl_lock_upload(UploadState s) {
+  auto mtx = static_cast<std::mutex *>(s.mtx);
+  mtx->lock();
+}
 
-  size_t total_size = size * nmemb;
-  auto *header_line = static_cast<char *>(ptr);
-  if (total_size < 2 || strncmp(header_line, "\r\n", 2) == 0) {
-    auto *header = new Field[header_data->header_entries.size()];
-    std::copy(header_data->header_entries.begin(),
-              header_data->header_entries.end(), header);
-    header_data->response.headers = header;
-    header_data->response.header_count = header_data->header_entries.size();
-    header_data->callback(header_data->response);
-    return total_size;
+size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
+  auto data = static_cast<UploadState *>(userdata);
+  auto mtx = static_cast<std::mutex *>(data->mtx);
+  if (!data->len) {
+    return 0;
   }
-  if (!header_data->response.status) {
-    std::cout << header_line << std::endl;
-    std::istringstream sin(header_line);
-    std::string version;
-    int status_code;
-    sin >> version >> status_code;
-    header_data->response.status = status_code;
-    if (version == "HTTP/1.1") {
-      header_data->response.http_version = HTTP1_1;
-    } else if (version == "HTTP/2") {
-      header_data->response.http_version = HTTP2;
-    } else if (version == "HTTP/3") {
-      header_data->response.http_version = HTTP3;
-    } else {
-      header_data->response.http_version = HTTP1_0;
-    }
-    return total_size;
-  }
-
-  auto *pos = std::find(header_line, header_line + total_size, ':');
-
-  int key_len = pos - header_line;
-  int value_len = total_size - key_len - 4;
-
-  void *data =
-      header_data->session->memory_manager.allocateHeader(key_len + value_len);
-  char *header_kv = static_cast<char *>(data);
-
-  std::copy(header_line, pos, header_kv);
-  std::copy(pos + 2, header_line + total_size - 2, header_kv + key_len);
-
-  header_data->header_entries.push_back(
-      {.kv = header_kv, .key_len = key_len, .value_len = value_len});
-
-  return total_size;
+  auto dest = static_cast<char *>(ptr);
+  std::unique_lock lk{*mtx};
+  std::copy(data->buffer, data->buffer + data->len, dest);
+  data->len = 0;
+  return data->len;
 }

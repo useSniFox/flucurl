@@ -10,19 +10,18 @@
 extern "C" {
 #endif
 typedef struct Field {
-  char *kv;
-  int key_len;
-  int value_len;
+  char *p;
+  int len;
 } Field;
 
 typedef struct Request {
   const char *url;
   const char *method;
-  const char *data;
   int content_length;
-  Field *headers;
+  char **headers;
   int header_count;
   const char *resolved_ip;
+  void *mtx;
 } Request;
 
 enum HTTPVersion { HTTP1_0, HTTP1_1, HTTP2, HTTP3 };
@@ -79,6 +78,14 @@ typedef struct BodyData {
   void *session;
 } BodyData;
 
+typedef struct UploadState {
+  void *session;
+  char *buffer;
+  void *mtx;
+  int len;
+
+} UploadState;
+
 typedef void (*ResponseCallback)(Response);
 
 typedef void (*DataHandler)(BodyData);
@@ -87,17 +94,17 @@ typedef void (*ErrorHandler)(const char *message);
 
 FFI_PLUGIN_EXPORT void flucurl_global_init();
 FFI_PLUGIN_EXPORT void flucurl_global_deinit();
+FFI_PLUGIN_EXPORT void flucurl_unlock_upload(UploadState);
+FFI_PLUGIN_EXPORT void flucurl_lock_upload(UploadState);
 
 FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response);
 FFI_PLUGIN_EXPORT void flucurl_free_bodydata(BodyData body_data);
 
 FFI_PLUGIN_EXPORT void *flucurl_session_init(Config config);
 FFI_PLUGIN_EXPORT void flucurl_session_terminate(void *session);
-FFI_PLUGIN_EXPORT void flucurl_session_send_request(void *session,
-                                                    Request request,
-                                                    ResponseCallback callback,
-                                                    DataHandler onData,
-                                                    ErrorHandler onError);
+FFI_PLUGIN_EXPORT UploadState *flucurl_session_send_request(
+    void *session, Request request, ResponseCallback callback,
+    DataHandler onData, ErrorHandler onError);
 #ifdef __cplusplus
 }
 #endif
