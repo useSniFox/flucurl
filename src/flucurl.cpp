@@ -130,7 +130,7 @@ class Session {
   // you should lock outside
   CURL *acquire_handle() {
     if (handles.empty()) {
-      CURL *curl = curl_easy_init();
+      CURL *curl = curl_easy_duphandle(handle_prototype);
       return curl;
     }
     CURL *curl = handles.back();
@@ -160,6 +160,7 @@ class Session {
   bool should_exit = false;
   int running_handles = 0;
   Config config;
+  CURL *handle_prototype;
 
   void add_request(Request request, ResponseCallback callback,
                    DataHandler onData, ErrorHandler onError) {
@@ -186,49 +187,6 @@ class Session {
     // set body receive callback
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
-
-    // set default ssl support
-    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-    curl_easy_setopt(curl, CURLOPT_SSLENGINE, "dynamic");
-    curl_easy_setopt(curl, CURLOPT_SSLENGINE_DEFAULT, 1l);
-
-    switch (config.http_version) {
-      case HTTP1_0:
-        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
-        break;
-      case HTTP1_1:
-        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-        break;
-      case HTTP2:
-        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
-        break;
-      case HTTP3:
-        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_3);
-        break;
-      default:
-        curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_NONE);
-        break;
-    }
-
-    // set response timeout
-    if (config.timeout) {
-      curl_easy_setopt(curl, CURLOPT_TIMEOUT, config.timeout);
-    }
-
-    // set http proxy
-    if (config.proxy) {
-      curl_easy_setopt(curl, CURLOPT_PROXY, config.proxy);
-    }
-
-    // set tcp keep alive
-    if (config.keep_alive) {
-      curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, config.keep_alive);
-    }
-
-    // set tcp idle timeout
-    if (config.idle_timeout) {
-      curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, config.idle_timeout);
-    }
 
     CURLcode ret = curl_easy_setopt(curl, CURLOPT_URL, request.url);
     if (ret != CURLE_OK) {
@@ -275,14 +233,50 @@ class Session {
 auto flucurl_session_init(Config config) -> void * {
   auto *session = new Session();
   session->config = config;
-  for (int i = 0; i < 5; i++) {
-    CURL *curl = curl_easy_init();
-    if (!curl) {
-      std::cerr << "Unable to init easy handle!" << std::endl;
-      return nullptr;
-    }
-    session->handles.push_back(curl);
+  CURL *curl = curl_easy_init();
+  // set default ssl support
+  curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+  curl_easy_setopt(curl, CURLOPT_SSLENGINE, "dynamic");
+  curl_easy_setopt(curl, CURLOPT_SSLENGINE_DEFAULT, 1l);
+
+  switch (config.http_version) {
+    case HTTP1_0:
+      curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+      break;
+    case HTTP1_1:
+      curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+      break;
+    case HTTP2:
+      curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
+      break;
+    case HTTP3:
+      curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_3);
+      break;
+    default:
+      curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_NONE);
+      break;
   }
+
+  // set response timeout
+  if (config.timeout) {
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, config.timeout);
+  }
+
+  // set http proxy
+  if (config.proxy) {
+    curl_easy_setopt(curl, CURLOPT_PROXY, config.proxy);
+  }
+
+  // set tcp keep alive
+  if (config.keep_alive) {
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, config.keep_alive);
+  }
+
+  // set tcp idle timeout
+  if (config.idle_timeout) {
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, config.idle_timeout);
+  }
+  session->handle_prototype = curl;
   CURLM *multi_handle = curl_multi_init();
   // enable HTTP2 multiplexing by default
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
@@ -337,6 +331,7 @@ auto flucurl_session_terminate(void *p) -> void {
   for (auto handle : session->handles) {
     curl_easy_cleanup(handle);
   }
+  curl_easy_cleanup(session->handle_prototype);
   delete session;
 }
 
