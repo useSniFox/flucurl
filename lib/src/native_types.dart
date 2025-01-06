@@ -42,7 +42,7 @@ class NativeRequest with NativeFreeable {
     nativeRequest.ref.headers = allocate(ffi.sizeOf<ffi.Pointer>() * headers.length);
     int i = 0;
     for (var entry in headers.entries) {
-      var value = "$entry.key: ${entry.value}";
+      var value = "${entry.key}: ${entry.value}";
       nativeRequest.ref.headers[i] = value.toNative(this);
       i++;
     }
