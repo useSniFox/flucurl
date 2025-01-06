@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
@@ -7,31 +8,55 @@ import 'package:flucurl/src/binding.dart';
 import 'package:flucurl/src/native_types.dart';
 import 'package:flucurl/src/types.dart';
 import 'package:flucurl/src/flucurl_bindings_generated.dart' as generated;
+import 'package:flucurl/src/utils.dart';
+
+typedef _DNSResolver = String? Function(String host);
 
 class FlucurlClient {
   late ffi.Pointer<ffi.Void> session;
 
+  _DNSResolver? _dnsResolver;
+
   FlucurlClient({
     FlucurlConfig config = const FlucurlConfig(),
   }) {
+    _dnsResolver = config.dnsResolver;
     var nativeConfig = NativeConfig(config);
-    session = bindings.session_init(nativeConfig.nativeConfig.ref);
+    session = bindings.flucurl_session_init(nativeConfig.nativeConfig.ref);
     nativeConfig.free();
   }
 
-  Future<Response> send(Request request) async {
-    if (request.body is Stream) {
-      var builder = BytesBuilder(copy: false);
-      await for (var chunk in request.body as Stream) {
-        if (chunk is! List<int>) {
-          throw ArgumentError('Stream must only yield List<int>');
-        }
-        builder.add(chunk);
+  Request _translateRequestBody(Request request) {
+    if (request.body is String) {
+      request.headers['Content-Type'] ??= 'text/plain';
+      var data = utf8.encode(request.body as String);
+      request.headers['Content-Length'] ??= data.length.toString();
+      return request.copyWith(body: Stream.value(Uint8List.fromList(data)));
+    } else if (request.body is List<int>) {
+      request.headers['Content-Length'] ??= (request.body as List<int>).length.toString();
+      return request.copyWith(body: Stream.value(Uint8List.fromList(request.body as List<int>)));
+    } else if (request.body is Stream<List<int>> || request.body is Stream<Uint8List>) {
+      if (request.headers['Content-Length'] == null || request.headers['content-length'] == null) {
+        throw ArgumentError('Content-Length must be provided for Stream<List<int>>');
       }
-      request = request.copyWith(body: builder.takeBytes());
+      return request;
+    } else if (request.body is Map || request.body is List) {
+      request.headers['Content-Type'] ??= 'application/json';
+      var data = utf8.encode(json.encode(request.body));
+      request.headers['Content-Length'] ??= data.length.toString();
+      return request.copyWith(body: Stream.value(Uint8List.fromList(data)));
+    } else if (request.body == null) {
+      request.headers['Content-Length'] ??= '0';
+      return request;
+    } else {
+      throw ArgumentError('Invalid body type');
     }
+  }
 
-    var req = NativeRequest(request);
+  Future<Response> send(Request request) async {
+    request = _translateRequestBody(request);
+
+    var req = NativeRequest(request, _dnsResolver?.call(request.url));
     var completer = Completer<Response>();
     var bodyStreamController = StreamController<Uint8List>();
 
@@ -52,9 +77,13 @@ class FlucurlClient {
       for (int i = 0; i < response.header_count; i++) {
         var field = ffi.Pointer<generated.Field>.fromAddress(
             response.headers.address + i * ffi.sizeOf<generated.Field>());
-        var key = field.ref.key.cast<Utf8>().toDartString();
-        var value = field.ref.value.cast<Utf8>().toDartString();
-        headers.putIfAbsent(key, () => []).add(value);
+        var data = field.ref.p.cast<ffi.Uint8>().asTypedList(field.ref.len);
+        var str = utf8.decode(data);
+        var spliter = str.indexOf(':');
+        var key = str.substring(0, spliter);
+        var value = str.substring(spliter + 1).trim();
+        headers[key] ??= [];
+        headers[key]!.add(value);
       }
       bindings.flucurl_free_reponse(response);
       completer.complete(Response(
@@ -75,7 +104,7 @@ class FlucurlClient {
       var d = Uint8List(data.size);
       d.setAll(0, data.data.cast<ffi.Uint8>().asTypedList(data.size));
       bodyStreamController.add(d);
-      bindings.flucurl_free_bodydata(data.data);
+      bindings.flucurl_free_bodydata(data);
     }
 
     void onError(ffi.Pointer<ffi.Char> error) {
@@ -99,7 +128,7 @@ class FlucurlClient {
     nativeFunctions.addAll(
         [nativeResponseCallback, nativeDataHandler, nativeErrorHandler]);
         
-    bindings.session_send_request(
+    var state = bindings.flucurl_session_send_request(
       session,
       req.nativeRequest.ref,
       nativeResponseCallback.nativeFunction,
@@ -107,10 +136,46 @@ class FlucurlClient {
       nativeErrorHandler.nativeFunction,
     );
 
+    if (request.body == null) {
+      return completer.future;
+    }
+
+    const bufferSize = 4 * 1024;
+    var buffer = NativeFreeable.allocateMem<ffi.Uint8>(bufferSize);
+    int writeIndex = 0;
+
+    await for (var d in request.body as Stream) {
+      assert(d is List<int>);
+      var data = d as List<int>;
+      int readIndex = 0;
+      while(readIndex != data.length) {
+        var bufferAvailable = bufferSize - writeIndex;
+        var dataAvailable = data.length - readIndex;
+        var toWrite = bufferAvailable < dataAvailable ? bufferAvailable : dataAvailable;
+        (buffer+writeIndex).asTypedList(toWrite).setAll(0, data.getRange(readIndex, readIndex+toWrite));
+        writeIndex += toWrite;
+        readIndex += toWrite;
+        if (writeIndex == bufferSize) {
+          var field = ffi.Struct.create<generated.Field>();
+          field.p = buffer.cast();
+          field.len = bufferSize;
+          bindings.flucurl_upload_append(state.ref, field);
+          writeIndex = 0;
+        }
+      }
+    }
+
+    if (writeIndex != 0) {
+      var field = ffi.Struct.create<generated.Field>();
+      field.p = buffer.cast();
+      field.len = writeIndex;
+      bindings.flucurl_upload_append(state.ref, field);
+    }
+
     return completer.future;
   }
 
   void close() {
-    bindings.session_terminate(session);
+    bindings.flucurl_session_terminate(session);
   }
 }

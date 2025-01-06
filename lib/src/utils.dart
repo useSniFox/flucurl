@@ -17,15 +17,7 @@ mixin class NativeFreeable {
 
   void free() {
     for (var pointer in _pointers) {
-      var freed = false;
-      for (var pool in _memPolls) {
-        if (freed = pool.maybeFree(pointer)) {
-          break;
-        }
-      }
-      if (!freed) {
-        malloc.free(pointer);
-      }
+      freePtr(pointer);
     }
     for (var function in _nativeFunctions) {
       function.close();
@@ -59,6 +51,8 @@ mixin class NativeFreeable {
     _MemPool(10, ffi.sizeOf<bindings.TLSConfig>()),
     // bindings.Request
     _MemPool(20, ffi.sizeOf<bindings.Request>()),
+    // data packets
+    _MemPool(25, 4*1024),
   ];
 
   static final _dynamicSizeMemPools = [
@@ -70,7 +64,33 @@ mixin class NativeFreeable {
     _MemPool(20, 2048),
   ];
 
-  List<_MemPool> get _memPolls => [..._fixedSizeMemPools, ..._dynamicSizeMemPools];
+  static List<_MemPool> get _memPolls => [..._fixedSizeMemPools, ..._dynamicSizeMemPools];
+
+  static void freePtr(ffi.Pointer pointer) {
+    for (var pool in _memPolls) {
+      if (pool.maybeFree(pointer)) {
+        return;
+      }
+    }
+    malloc.free(pointer);
+  }
+
+  static ffi.Pointer<T> allocateMem<T extends ffi.NativeType>(int size) {
+    for (var pool in _fixedSizeMemPools) {
+      if (size == pool.itemSize) {
+        var p = pool.allocate();
+        return p.cast();
+      }
+    }
+    for (var pool in _dynamicSizeMemPools) {
+      if (size <= pool.itemSize) {
+        var p = pool.allocate();
+        return p.cast();
+      }
+    }
+    var p = malloc.allocate(size);
+    return p.cast();
+  }
 }
 
 extension Utf8String on String {

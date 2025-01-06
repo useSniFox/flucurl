@@ -159,7 +159,6 @@ void findVcpkg() {
   "dependencies": [
     {
       "name": "curl",
-      "version": "8.11.1",
       "features": [
         "openssl",
         "http2",

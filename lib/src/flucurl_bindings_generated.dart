@@ -45,6 +45,64 @@ class FlucurlBindings {
   late final _flucurl_global_deinit =
       _flucurl_global_deinitPtr.asFunction<void Function()>();
 
+  void flucurl_unlock_upload(
+    UploadState arg0,
+  ) {
+    return _flucurl_unlock_upload(
+      arg0,
+    );
+  }
+
+  late final _flucurl_unlock_uploadPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(UploadState)>>(
+          'flucurl_unlock_upload');
+  late final _flucurl_unlock_upload =
+      _flucurl_unlock_uploadPtr.asFunction<void Function(UploadState)>();
+
+  void flucurl_lock_upload(
+    UploadState arg0,
+  ) {
+    return _flucurl_lock_upload(
+      arg0,
+    );
+  }
+
+  late final _flucurl_lock_uploadPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(UploadState)>>(
+          'flucurl_lock_upload');
+  late final _flucurl_lock_upload =
+      _flucurl_lock_uploadPtr.asFunction<void Function(UploadState)>();
+
+  void flucurl_resume_upload(
+    UploadState arg0,
+  ) {
+    return _flucurl_resume_upload(
+      arg0,
+    );
+  }
+
+  late final _flucurl_resume_uploadPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(UploadState)>>(
+          'flucurl_resume_upload');
+  late final _flucurl_resume_upload =
+      _flucurl_resume_uploadPtr.asFunction<void Function(UploadState)>();
+
+  void flucurl_upload_append(
+    UploadState arg0,
+    Field arg1,
+  ) {
+    return _flucurl_upload_append(
+      arg0,
+      arg1,
+    );
+  }
+
+  late final _flucurl_upload_appendPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(UploadState, Field)>>(
+          'flucurl_upload_append');
+  late final _flucurl_upload_append =
+      _flucurl_upload_appendPtr.asFunction<void Function(UploadState, Field)>();
+
   void flucurl_free_reponse(
     Response arg0,
   ) {
@@ -60,55 +118,55 @@ class FlucurlBindings {
       _flucurl_free_reponsePtr.asFunction<void Function(Response)>();
 
   void flucurl_free_bodydata(
-    ffi.Pointer<ffi.Char> arg0,
+    BodyData body_data,
   ) {
     return _flucurl_free_bodydata(
-      arg0,
+      body_data,
     );
   }
 
   late final _flucurl_free_bodydataPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Char>)>>(
+      _lookup<ffi.NativeFunction<ffi.Void Function(BodyData)>>(
           'flucurl_free_bodydata');
-  late final _flucurl_free_bodydata = _flucurl_free_bodydataPtr
-      .asFunction<void Function(ffi.Pointer<ffi.Char>)>();
+  late final _flucurl_free_bodydata =
+      _flucurl_free_bodydataPtr.asFunction<void Function(BodyData)>();
 
-  ffi.Pointer<ffi.Void> session_init(
+  ffi.Pointer<ffi.Void> flucurl_session_init(
     Config config,
   ) {
-    return _session_init(
+    return _flucurl_session_init(
       config,
     );
   }
 
-  late final _session_initPtr =
+  late final _flucurl_session_initPtr =
       _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Void> Function(Config)>>(
-          'session_init');
-  late final _session_init =
-      _session_initPtr.asFunction<ffi.Pointer<ffi.Void> Function(Config)>();
+          'flucurl_session_init');
+  late final _flucurl_session_init = _flucurl_session_initPtr
+      .asFunction<ffi.Pointer<ffi.Void> Function(Config)>();
 
-  void session_terminate(
+  void flucurl_session_terminate(
     ffi.Pointer<ffi.Void> session,
   ) {
-    return _session_terminate(
+    return _flucurl_session_terminate(
       session,
     );
   }
 
-  late final _session_terminatePtr =
+  late final _flucurl_session_terminatePtr =
       _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-          'session_terminate');
-  late final _session_terminate =
-      _session_terminatePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+          'flucurl_session_terminate');
+  late final _flucurl_session_terminate = _flucurl_session_terminatePtr
+      .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
-  void session_send_request(
+  ffi.Pointer<UploadState> flucurl_session_send_request(
     ffi.Pointer<ffi.Void> session,
     Request request,
     ResponseCallback callback,
     DataHandler onData,
     ErrorHandler onError,
   ) {
-    return _session_send_request(
+    return _flucurl_session_send_request(
       session,
       request,
       callback,
@@ -117,19 +175,25 @@ class FlucurlBindings {
     );
   }
 
-  late final _session_send_requestPtr = _lookup<
+  late final _flucurl_session_send_requestPtr = _lookup<
       ffi.NativeFunction<
-          ffi.Void Function(ffi.Pointer<ffi.Void>, Request, ResponseCallback,
-              DataHandler, ErrorHandler)>>('session_send_request');
-  late final _session_send_request = _session_send_requestPtr.asFunction<
-      void Function(ffi.Pointer<ffi.Void>, Request, ResponseCallback,
-          DataHandler, ErrorHandler)>();
+          ffi.Pointer<UploadState> Function(
+              ffi.Pointer<ffi.Void>,
+              Request,
+              ResponseCallback,
+              DataHandler,
+              ErrorHandler)>>('flucurl_session_send_request');
+  late final _flucurl_session_send_request =
+      _flucurl_session_send_requestPtr.asFunction<
+          ffi.Pointer<UploadState> Function(ffi.Pointer<ffi.Void>, Request,
+              ResponseCallback, DataHandler, ErrorHandler)>();
 }
 
 final class Field extends ffi.Struct {
-  external ffi.Pointer<ffi.Char> key;
+  external ffi.Pointer<ffi.Char> p;
 
-  external ffi.Pointer<ffi.Char> value;
+  @ffi.Int()
+  external int len;
 }
 
 final class Request extends ffi.Struct {
@@ -137,15 +201,17 @@ final class Request extends ffi.Struct {
 
   external ffi.Pointer<ffi.Char> method;
 
-  external ffi.Pointer<ffi.Char> data;
-
   @ffi.Int()
   external int content_length;
 
-  external ffi.Pointer<Field> headers;
+  external ffi.Pointer<ffi.Pointer<ffi.Char>> headers;
 
   @ffi.Int()
   external int header_count;
+
+  external ffi.Pointer<ffi.Char> resolved_ip;
+
+  external ffi.Pointer<ffi.Void> mtx;
 }
 
 enum HTTPVersion {
@@ -177,6 +243,8 @@ final class Response extends ffi.Struct {
 
   @ffi.Int()
   external int header_count;
+
+  external ffi.Pointer<ffi.Void> session;
 }
 
 final class TLSConfig extends ffi.Struct {
@@ -213,10 +281,6 @@ final class Config extends ffi.Struct {
   /// - scheme://user:password@host:port
   external ffi.Pointer<ffi.Char> proxy;
 
-  /// DNS resolver function. If null or returns null, the system default
-  /// resolver will be used.
-  external ffi.Pointer<DNSResolver> dns_resolver;
-
   /// TLS configuration.
   external ffi.Pointer<TLSConfig> tls_config;
 
@@ -228,17 +292,35 @@ final class Config extends ffi.Struct {
 
   @ffi.Int()
   external int idle_timeout;
-}
 
-typedef DNSResolver = ffi.Pointer<ffi.NativeFunction<DNSResolverFunction>>;
-typedef DNSResolverFunction = ffi.Pointer<ffi.Char> Function(
-    ffi.Pointer<ffi.Char> host);
+  external ffi
+      .Pointer<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>
+      free_dart_memory;
+}
 
 final class BodyData extends ffi.Struct {
   external ffi.Pointer<ffi.Char> data;
 
   @ffi.Int()
   external int size;
+
+  external ffi.Pointer<ffi.Void> session;
+}
+
+final class UploadState extends ffi.Struct {
+  external ffi.Pointer<ffi.Void> session;
+
+  external ffi.Pointer<ffi.Void> queue;
+
+  external ffi.Pointer<ffi.Void> curl;
+
+  @ffi.Int()
+  external int pause;
+
+  external ffi.Pointer<ffi.Void> mtx;
+
+  @ffi.Size()
+  external int cur;
 }
 
 typedef ResponseCallback
