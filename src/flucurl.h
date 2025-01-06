@@ -1,5 +1,4 @@
 #pragma once
-
 #if _WIN32
 #define FFI_PLUGIN_EXPORT __declspec(dllexport)
 #else
@@ -86,7 +85,7 @@ typedef struct UploadState {
   void *curl;
   int pause;
   void *mtx;
-  size_t cur;
+  unsigned long long cur;
 } UploadState;
 
 typedef void (*ResponseCallback)(Response);

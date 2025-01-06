@@ -1,8 +1,14 @@
 #include "flucurl.h"
 
+#include <curl/curl.h>
+#include <curl/easy.h>
+#include <curl/multi.h>
+#include <curl/urlapi.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <memory_resource>
@@ -14,20 +20,6 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
-
-#ifdef _WIN32
-#include "build/vcpkg_installed/x64-windows/include/curl/curl.h"
-#include "build/vcpkg_installed/x64-windows/include/curl/easy.h"
-#include "build/vcpkg_installed/x64-windows/include/curl/multi.h"
-#include "build/vcpkg_installed/x64-windows/include/curl/urlapi.h"
-
-#else
-#include <curl/curl.h>
-#include <curl/easy.h>
-#include <curl/multi.h>
-#include <curl/urlapi.h>
-
-#endif
 
 class Session;
 using namespace std::chrono;
@@ -121,7 +113,6 @@ class ObjectPool {
   }
   ObjectPool(int32_t max_size = 15) : max_size(max_size) {}
   ~ObjectPool() {
-    std::cout << "destruct object pool\n";
     for (auto item : items) {
       delete item;
     }
@@ -247,7 +238,7 @@ class Session {
     std::unique_lock<std::mutex> lk{request_mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
-      it->second->onData({nullptr, 0});
+      it->second->onData({nullptr, 0, this});
     }
   }
 
@@ -466,7 +457,7 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   auto *header_data = static_cast<TaskData *>(userdata);
   int total_size = size * nmemb;
   auto *header_line = static_cast<char *>(ptr);
-  if (strncmp(header_line, "\r\n", 2) == 0) {
+  if (std::strncmp(header_line, "\r\n", 2) == 0) {
     auto *header = new Field[header_data->header_entries.size()];
     std::copy(header_data->header_entries.begin(),
               header_data->header_entries.end(), header);
@@ -475,7 +466,9 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
     header_data->callback(header_data->response);
     return total_size;
   }
-  if (!header_data->response.status) {
+  if (std::strncmp(header_line, "HTTP/1.1 ", 9) == 0 ||
+      std::strncmp(header_line, "HTTP/2 ", 7) == 0 ||
+      std::strncmp(header_line, "HTTP/3 ", 7) == 0) {
     std::cout << header_line << std::endl;
     std::istringstream sin(header_line);
     std::string version;
