@@ -98,10 +98,6 @@ typedef void (*ErrorHandler)(const char *message);
 FFI_PLUGIN_EXPORT void flucurl_global_init();
 FFI_PLUGIN_EXPORT void flucurl_global_deinit();
 
-FFI_PLUGIN_EXPORT void flucurl_unlock_upload(UploadState);
-FFI_PLUGIN_EXPORT void flucurl_lock_upload(UploadState);
-
-FFI_PLUGIN_EXPORT void flucurl_resume_upload(UploadState);
 FFI_PLUGIN_EXPORT void flucurl_upload_append(UploadState, Field);
 
 FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response);

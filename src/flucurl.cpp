@@ -406,11 +406,6 @@ void flucurl_lock_upload(UploadState s) {
   mtx->lock();
 }
 
-void flucurl_resume_upload(UploadState s) {
-  s.pause = false;
-  curl_easy_pause(s.curl, CURLPAUSE_CONT);
-}
-
 size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   size_t total_size = size * nmemb;
   auto state = static_cast<UploadState *>(userdata);
@@ -418,6 +413,10 @@ size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   auto queue = static_cast<std::queue<Field> *>(state->queue);
   auto session = static_cast<Session *>(state->session);
   std::unique_lock lk{*mtx};
+  if (queue->empty()) {
+    state->pause = true;
+    return CURL_READFUNC_PAUSE;
+  }
   auto field = queue->front();
   if (!field.p) {
     return 0;
@@ -443,6 +442,8 @@ void flucurl_upload_append(UploadState s, Field f) {
   auto queue = static_cast<std::queue<Field> *>(s.queue);
   std::unique_lock<std::mutex> lk{*mtx};
   queue->push(f);
+  s.pause = false;
+  curl_easy_pause(s.curl, CURLPAUSE_CONT);
 }
 
 size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
