@@ -32,7 +32,7 @@ class Session;
 using namespace std::chrono;
 class HTTPMemoryManager {
  public:
-  HTTPMemoryManager(size_t headerBufferSize, size_t bodyBufferSize)
+  HTTPMemoryManager()
       : headerPool(&headerUpstream),
         bodyPool(&bodyUpstream),
         headerResource(&headerPool),
@@ -52,9 +52,6 @@ class HTTPMemoryManager {
   ~HTTPMemoryManager() { std::cout << "memory manager destructed\n"; }
 
  private:
-  static constexpr size_t headerBufferCount = 1024;
-  static constexpr size_t bodyBufferCount = 1024;
-
   // Upstream resources to handle overflow
   std::pmr::unsynchronized_pool_resource headerUpstream;
   std::pmr::unsynchronized_pool_resource bodyUpstream;
@@ -254,7 +251,7 @@ class Session {
     }
   }
 
-  Session() : memory_manager(64, 1024) {}
+  Session() : memory_manager() {}
 
   ~Session() {}
 
