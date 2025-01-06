@@ -188,6 +188,7 @@ class Session {
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
     curl_easy_setopt(curl, CURLOPT_READDATA, state);
     data->upload_state = state;
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, request.content_length);
 
     // set header receive callback
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
