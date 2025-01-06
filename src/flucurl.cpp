@@ -440,6 +440,15 @@ void flucurl_upload_append(UploadState s, Field f) {
 
 size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   auto *cb_data = static_cast<TaskData *>(userdata);
+  if (cb_data->response.status) {
+    auto *header = new Field[cb_data->header_entries.size()];
+    std::copy(cb_data->header_entries.begin(), cb_data->header_entries.end(),
+              header);
+    cb_data->response.headers = header;
+    cb_data->response.header_count = cb_data->header_entries.size();
+    cb_data->callback(cb_data->response);
+    cb_data->response.status = 0;
+  }
   size_t total_size = size * nmemb;
   auto *body_ptr = static_cast<char *>(ptr);
   auto *data = cb_data->session->memory_manager.allocateBody(total_size);
@@ -458,12 +467,6 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   int total_size = size * nmemb;
   auto *header_line = static_cast<char *>(ptr);
   if (std::strncmp(header_line, "\r\n", 2) == 0) {
-    auto *header = new Field[header_data->header_entries.size()];
-    std::copy(header_data->header_entries.begin(),
-              header_data->header_entries.end(), header);
-    header_data->response.headers = header;
-    header_data->response.header_count = header_data->header_entries.size();
-    header_data->callback(header_data->response);
     return total_size;
   }
   if (std::strncmp(header_line, "HTTP/1.1 ", 9) == 0 ||
