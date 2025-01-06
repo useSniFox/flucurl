@@ -427,7 +427,7 @@ size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
     return CURL_READFUNC_PAUSE;
   }
   auto dest = static_cast<char *>(ptr);
-  size_t len = std::min(total_size, remaining);
+  size_t len = min(total_size, remaining);
   std::copy(field.p + state->cur, field.p + state->cur + len, dest);
   state->cur += len;
   if (state->cur >= field.len) {
