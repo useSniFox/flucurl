@@ -238,7 +238,6 @@ auto flucurl_session_init(Config config) -> void * {
   curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
   curl_easy_setopt(curl, CURLOPT_SSLENGINE, "dynamic");
   curl_easy_setopt(curl, CURLOPT_SSLENGINE_DEFAULT, 1l);
-
   switch (config.http_version) {
     case HTTP1_0:
       curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
@@ -277,6 +276,7 @@ auto flucurl_session_init(Config config) -> void * {
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, config.idle_timeout);
   }
   session->handle_prototype = curl;
+
   CURLM *multi_handle = curl_multi_init();
   // enable HTTP2 multiplexing by default
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
@@ -357,8 +357,8 @@ void flucurl_free_reponse(Response response) {
   auto session = static_cast<Session *>(response.session);
   for (int i = 0; i < response.header_count; i++) {
     auto header = response.headers[i];
-    session->memory_manager.deallocateHeader(
-        header.kv, header.key_len + header.value_len + 2);
+    session->memory_manager.deallocateHeader(header.kv,
+                                             header.key_len + header.value_len);
   }
   delete[] response.headers;
 }
@@ -420,14 +420,12 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   int key_len = pos - header_line;
   int value_len = total_size - key_len - 4;
 
-  void *data = header_data->session->memory_manager.allocateHeader(
-      key_len + value_len + 2);
+  void *data =
+      header_data->session->memory_manager.allocateHeader(key_len + value_len);
   char *header_kv = static_cast<char *>(data);
-  std::copy(header_line, pos, header_kv);
-  header_kv[key_len] = '\0';
 
-  std::copy(pos + 2, header_line + total_size - 2, header_kv + key_len + 1);
-  header_kv[key_len + value_len + 1] = '\0';
+  std::copy(header_line, pos, header_kv);
+  std::copy(pos + 2, header_line + total_size - 2, header_kv + key_len);
 
   header_data->header_entries.push_back(
       {.kv = header_kv, .key_len = key_len, .value_len = value_len});
