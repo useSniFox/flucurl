@@ -42,7 +42,7 @@ class HTTPMemoryManager {
   void deallocateBody(char *ptr, size_t size) {
     bodyResource.deallocate(ptr, size);
   }
-  ~HTTPMemoryManager() { std::cout << "memory manager destructed\n"; }
+  ~HTTPMemoryManager() {}
 
  private:
   // Upstream resources to handle overflow
@@ -319,7 +319,7 @@ auto flucurl_session_init(Config config) -> void * {
           if (msg->data.result != CURLE_OK) {
             session->report_error(handle, curl_easy_strerror(msg->data.result));
           } else {
-            std::cout << "Request completed successfully." << std::endl;
+            // std::cout << "Request completed successfully." << std::endl;
             // Handle your data here (e.g., retrieve response)
             session->report_done(handle);
           }
@@ -476,7 +476,7 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
     // possibly a http message header
     bool yes = false;
     int status_code;
-    std::cout << header_line << std::endl;
+    // std::cout << header_line << std::endl;
     std::istringstream sin(header_line);
     std::string version;
     sin >> version >> status_code;
