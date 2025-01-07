@@ -346,7 +346,7 @@ auto flucurl_session_init(Config config) -> void * {
 auto flucurl_session_terminate(void *p) -> void {
   auto *session = static_cast<Session *>(p);
   session->should_exit = true;
-  if (session->worker->joinable()) session->worker->join();
+  session->worker->join();
   session->worker = nullptr;
   curl_multi_cleanup(session->multi_handle);
   for (auto handle : session->handles) {
@@ -467,24 +467,27 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   int total_size = size * nmemb;
   auto *header_line = static_cast<char *>(ptr);
   if (std::strncmp(header_line, "\r\n", 2) == 0) {
+    // skip empty line
     return total_size;
   }
-  if (std::strncmp(header_line, "HTTP/1.1 ", 9) == 0 ||
-      std::strncmp(header_line, "HTTP/2 ", 7) == 0 ||
-      std::strncmp(header_line, "HTTP/3 ", 7) == 0) {
+  if (std::strncmp(header_line, "HTTP/", 5) == 0) {
+    // possibly a http message header
+    bool yes = false;
+    int status_code;
     std::cout << header_line << std::endl;
     std::istringstream sin(header_line);
     std::string version;
-    int status_code;
     sin >> version >> status_code;
     header_data->response.status = status_code;
-    if (version == "HTTP/1.1") {
+    if (std::strncmp(header_line + 5, "1.1 ", 4) == 0) {
       header_data->response.http_version = HTTP1_1;
-    } else if (version == "HTTP/2") {
+    } else if (std::strncmp(header_line + 5, "2 ", 2) == 0) {
       header_data->response.http_version = HTTP2;
-    } else if (version == "HTTP/3") {
+
+    } else if (std::strncmp(header_line + 5, "3 ", 2) == 0) {
       header_data->response.http_version = HTTP3;
-    } else {
+
+    } else if (std::strncmp(header_line + 5, "1.0 ", 4) == 0) {
       header_data->response.http_version = HTTP1_0;
     }
     return total_size;
@@ -494,6 +497,7 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
       header_data->session->memory_manager.allocateHeader(total_size - 2);
   char *header_kv = static_cast<char *>(data);
 
+  // strip the trailing "\r\n"
   std::copy(header_line, header_line + total_size - 2, header_kv);
 
   header_data->header_entries.push_back(
