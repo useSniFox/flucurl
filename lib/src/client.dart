@@ -26,7 +26,7 @@ class FlucurlClient {
     nativeConfig.free();
   }
 
-  Request _translateRequestBody(Request request) {
+  FlucurlRequest _translateRequestBody(FlucurlRequest request) {
     if (request.body is String) {
       request.headers['Content-Type'] ??= 'text/plain';
       var data = utf8.encode(request.body as String);
@@ -53,12 +53,12 @@ class FlucurlClient {
     }
   }
 
-  Future<Response> send(Request request) async {
+  Future<FlucurlResponse> send(FlucurlRequest request) async {
     request = _translateRequestBody(request);
 
     var req = NativeRequest(request, _dnsResolver?.call(request.url));
-    var completer = Completer<Response>();
-    var bodyStreamController = StreamController<Uint8List>();
+    var completer = Completer<FlucurlResponse>();
+    var bodySink = StreamController<Uint8List>();
 
     var nativeFunctions = <ffi.NativeCallable>[];
 
@@ -79,6 +79,9 @@ class FlucurlClient {
             response.headers.address + i * ffi.sizeOf<generated.Field>());
         var data = field.ref.p.cast<ffi.Uint8>().asTypedList(field.ref.len);
         var str = utf8.decode(data);
+        if (!str.contains(':')) {
+          continue;
+        }
         var spliter = str.indexOf(':');
         var key = str.substring(0, spliter);
         var value = str.substring(spliter + 1).trim();
@@ -86,32 +89,33 @@ class FlucurlClient {
         headers[key]!.add(value);
       }
       bindings.flucurl_free_reponse(response);
-      completer.complete(Response(
+      completer.complete(FlucurlResponse(
         url: url,
         method: method,
         statusCode: statusCode,
         headers: headers,
-        body: bodyStreamController.stream,
+        body: bodySink.stream,
       ));
     }
 
     void onData(generated.BodyData data) {
-      if (data.data == ffi.nullptr) {
-        bodyStreamController.close();
-        clear();
-        return;
+      try {
+        if (data.data == ffi.nullptr) {
+          bodySink.close();
+          clear();
+          return;
+        }
+        bodySink.add(Uint8List.fromList(data.data.cast<ffi.Uint8>().asTypedList(data.size)));
+      } finally {
+        bindings.flucurl_free_bodydata(data);
       }
-      var d = Uint8List(data.size);
-      d.setAll(0, data.data.cast<ffi.Uint8>().asTypedList(data.size));
-      bodyStreamController.add(d);
-      bindings.flucurl_free_bodydata(data);
     }
 
     void onError(ffi.Pointer<ffi.Char> error) {
       clear();
       var message = error.cast<Utf8>().toDartString();
       if (completer.isCompleted) {
-        bodyStreamController.addError(message);
+        bodySink.addError(message);
       } else {
         completer.completeError(message);
       }

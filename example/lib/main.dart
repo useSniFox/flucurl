@@ -17,7 +17,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   var url = 'http://example.com';
 
-  Response? response;
+  String response = '';
 
   bool loading = false;
 
@@ -50,19 +50,29 @@ class _MyAppState extends State<MyApp> {
                     if (url.isEmpty || loading) {
                       return;
                     }
+                    var dio = FlucurlDio(
+                          baseOptions:
+                              BaseOptions(validateStatus: (i) => true));
                     try {
+                      response = '';
                       setState(() {
                         loading = true;
                       });
-                      var dio = FlucurlDio(
-                          baseOptions:
-                              BaseOptions(validateStatus: (i) => true));
-                      response = await dio.get(url);
-                      dio.close();
+                      var res = await dio.get(url);
+                      response = "Status Code: ${res.statusCode}\n";
+                      response += "Headers:\n";
+                      for (var entry in res.headers.map.entries) {
+                        response += "${entry.key}: ${entry.value}\n";
+                      }
+                      response += "Body:\n";
+                      response += res.data.toString();
+                    } catch (e) {
+                      print(e);
                     } finally {
                       setState(() {
                         loading = false;
                       });
+                      dio.close();
                     }
                   },
                   child: loading
@@ -94,23 +104,12 @@ class _MyAppState extends State<MyApp> {
   }
 
   Widget buildResponse() {
-    if (response == null) {
-      return const SizedBox();
-    } else {
-      return SizedBox(
+    return SizedBox(
         width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Status Code: ${response!.statusCode}"),
-            Text("Headers:"),
-            for (var entry in response!.headers.map.entries)
-              Text("${entry.key}: ${entry.value}"),
-            Text("Body:"),
-            Text(response!.data.toString()),
-          ],
-        ),
+        child: Text(
+          response,
+          style: const TextStyle(fontSize: 16),
+        )
       );
-    }
   }
 }

@@ -25,21 +25,7 @@ mixin class NativeFreeable {
   }
 
   ffi.Pointer<T> allocate<T extends ffi.NativeType>(int size) {
-    for (var pool in _fixedSizeMemPools) {
-      if (size == pool.itemSize) {
-        var p = pool.allocate();
-        addPointer(p);
-        return p.cast();
-      }
-    }
-    for (var pool in _dynamicSizeMemPools) {
-      if (size <= pool.itemSize) {
-        var p = pool.allocate();
-        addPointer(p);
-        return p.cast();
-      }
-    }
-    var p = malloc.allocate(size);
+    var p = allocateMem(size);
     addPointer(p);
     return p.cast();
   }

@@ -43,7 +43,7 @@ class TlsConfig {
   });
 }
 
-class Request {
+class FlucurlRequest {
   final String url;
 
   final String method;
@@ -52,20 +52,20 @@ class Request {
 
   final Object? body;
 
-  const Request({
+  FlucurlRequest({
     required this.url,
     this.method = 'GET',
-    this.headers = const {},
+    Map<String, String>? headers,
     this.body,
-  });
+  }): headers = headers ?? {};
 
-  Request copyWith({
+  FlucurlRequest copyWith({
     String? url,
     String? method,
     Map<String, String>? headers,
     Object? body,
   }) {
-    return Request(
+    return FlucurlRequest(
       url: url ?? this.url,
       method: method ?? this.method,
       headers: headers ?? this.headers,
@@ -74,7 +74,7 @@ class Request {
   }
 }
 
-class Response {
+class FlucurlResponse {
   final String url;
 
   final String method;
@@ -85,7 +85,7 @@ class Response {
 
   final Stream<Uint8List> body;
 
-  Response({
+  FlucurlResponse({
     required this.url,
     required this.method,
     required this.statusCode,

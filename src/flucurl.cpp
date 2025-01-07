@@ -384,6 +384,8 @@ void flucurl_free_reponse(Response response) {
   delete[] response.headers;
 }
 void flucurl_free_bodydata(BodyData body_data) {
+  std::cout << "freeing body data: " << static_cast<void *>(body_data.data) << " size: " << body_data.size
+            << std::endl;
   auto *session = static_cast<Session *>(body_data.session);
   session->memory_manager.deallocateBody(body_data.data, body_data.size);
 }

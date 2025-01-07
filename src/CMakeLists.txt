@@ -14,7 +14,6 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Android")
 endif()
 
 if (ANDROID)
-  message(FATAL_ERROR "Android is not supported")
   if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     set(DART_NAME "dart.bat")
   else()

@@ -29,7 +29,7 @@ class NativeConfig with NativeFreeable {
 }
 
 class NativeRequest with NativeFreeable {
-  final Request request;
+  final FlucurlRequest request;
   late final ffi.Pointer<bindings.Request> nativeRequest;
 
   final Map<HeaderKey, String> headers = {};

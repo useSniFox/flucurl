@@ -18,7 +18,7 @@ class FlucurlAdapter implements HttpClientAdapter {
 
   @override
   Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
-    var response = await client.send(Request(
+    var response = await client.send(FlucurlRequest(
       url: options.uri.toString(),
       method: options.method,
       headers: options.headers.map((key, value) => MapEntry(key, value.toString())),
