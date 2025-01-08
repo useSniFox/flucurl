@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -122,74 +123,45 @@ class ObjectPool {
 class Session {
   // you should lock outside
   CURL *acquire_handle() {
-    if (handles.empty()) {
-      CURL *curl = curl_easy_duphandle(handle_prototype);
+    if (!handles.empty()) {
+      CURL *curl = handles.back();
+      handles.pop_back();
       return curl;
     }
-    CURL *curl = handles.back();
-    handles.pop_back();
-    return curl;
+    if (total_handle < 50) {
+      CURL *curl = curl_easy_duphandle(handle_prototype);
+      curl_easy_setopt(curl, CURLOPT_SHARE, share_handle);
+      return curl;
+    }
+    return nullptr;
   }
 
   // you should lock outside
   void release_handle(CURL *curl) {
     // when there is too many idle handles
-    if (handles.size() >= 15) {
-      curl_easy_cleanup(curl);
+    if (task_queue.empty()) {
+      handles.push_back(curl);
       return;
     }
-    handles.push_back(curl);
+    auto task = task_queue.front();
+    task_queue.pop();
+    perform_request(curl, task);
   }
   ObjectPool<TaskData> request_task_pool;
-
- public:
-  ObjectPool<UploadState> upload_state_pool;
-  HTTPMemoryManager memory_manager;
-  std::unordered_map<CURL *, TaskData *> requests;
-  std::mutex request_mtx, handle_mtx;
-  CURLM *multi_handle = nullptr;
-  std::vector<CURL *> handles;
-  std::unique_ptr<std::thread> worker;
-  bool should_exit = false;
-  int running_handles = 0;
-  Config config;
-  CURL *handle_prototype;
-
-  UploadState *add_request(Request request, ResponseCallback callback,
-                           DataHandler onData, ErrorHandler onError) {
-    std::unique_lock<std::mutex> lk{request_mtx};
-    CURL *curl = acquire_handle();
-    if (curl == nullptr) {
-      onError("Unable to initialize curl");
-      return nullptr;
-    }
-
-    auto *data = request_task_pool.acquire_item();
-    data->session = this;
-    data->onData = onData;
-    data->onError = onError;
-    data->callback = callback;
-    data->request = request;
-    data->response = {};
-    data->response.session = this;
-
-    // set http body
-    auto *state = upload_state_pool.acquire_item();
-    state->queue = new std::queue<Field>();
-    state->mtx = new std::mutex();
-    state->session = this;
+  void perform_request(CURL *curl, TaskData *task) {
+    UploadState *state = task->upload_state;
+    Request request = task->request;
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
     curl_easy_setopt(curl, CURLOPT_READDATA, state);
-    data->upload_state = state;
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, request.content_length);
 
     // set header receive callback
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, data);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, task);
 
     // set body receive callback
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, task);
 
     // set http method
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, request.method);
@@ -203,14 +175,57 @@ class Session {
 
     CURLcode ret = curl_easy_setopt(curl, CURLOPT_URL, request.url);
     if (ret != CURLE_OK) {
-      onError("Unable to set URL");
-      return nullptr;
+      task->onError("Unable to set URL");
+      return;
     }
 
-    requests[curl] = data;
+    requests[curl] = task;
 
     curl_multi_add_handle(multi_handle, curl);
     curl_multi_wakeup(multi_handle);
+  }
+
+ public:
+  ObjectPool<UploadState> upload_state_pool;
+  HTTPMemoryManager memory_manager;
+  std::unordered_map<CURL *, TaskData *> requests;
+  std::mutex request_mtx, handle_mtx;
+  CURLM *multi_handle = nullptr;
+  CURLSH *share_handle = nullptr;
+  std::vector<CURL *> handles;
+  std::unique_ptr<std::thread> worker;
+  std::queue<TaskData *> task_queue;
+  int total_handle = 0;
+  bool should_exit = false;
+  int running_handles = 0;
+  Config config;
+  CURL *handle_prototype;
+
+  UploadState *add_request(Request request, ResponseCallback callback,
+                           DataHandler onData, ErrorHandler onError) {
+    auto *task = request_task_pool.acquire_item();
+    task->session = this;
+    task->onData = onData;
+    task->onError = onError;
+    task->callback = callback;
+    task->request = request;
+    task->response = {};
+    task->response.session = this;
+
+    // set http body
+    auto *state = upload_state_pool.acquire_item();
+    state->queue = new std::queue<Field>();
+    state->mtx = new std::mutex();
+    state->session = this;
+    task->upload_state = state;
+
+    std::unique_lock<std::mutex> lk{request_mtx};
+    CURL *curl = acquire_handle();
+    if (curl == nullptr) {
+      return state;
+    }
+
+    perform_request(curl, task);
     return state;
   }
 
@@ -299,10 +314,17 @@ auto flucurl_session_init(Config config) -> void * {
   }
   session->handle_prototype = curl;
 
+  // set share handle, share data connections and dns cache
+  CURLSH *share_handle = curl_share_init();
+  curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);
+  curl_share_setopt(share_handle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+  session->share_handle = share_handle;
+
   CURLM *multi_handle = curl_multi_init();
   // enable HTTP2 multiplexing by default
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
   session->multi_handle = multi_handle;
+
   session->worker = std::make_unique<std::thread>([session]() {
     do {
       CURLMcode mc =
@@ -351,6 +373,7 @@ auto flucurl_session_terminate(void *p) -> void {
     curl_easy_cleanup(handle);
   }
   curl_easy_cleanup(session->handle_prototype);
+  curl_share_cleanup(session->share_handle);
   delete session;
 }
 
