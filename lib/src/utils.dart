@@ -97,11 +97,10 @@ class _MemPool {
   var _availableCount = 0;
 
   _MemPool(this.length, this.itemSize) {
+    var start = malloc.allocate(itemSize * length);
     for (var i = 0; i < length; i++) {
-      var p = malloc.allocate(itemSize);
-      _mem[p] = false;
+      _mem[ffi.Pointer.fromAddress(start.address + i * itemSize)] = false;
     }
-    _availableCount = length;
   }
 
   ffi.Pointer allocate() {

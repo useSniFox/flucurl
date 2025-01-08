@@ -35,7 +35,9 @@ if (ANDROID)
     COMMAND "${DART_EXECUTABLE}" run src/build.dart android ${CMAKE_CXX_COMPILER} ${CMAKE_GENERATOR} ${CMAKE_COMMAND}
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
     RESULT_VARIABLE result
+    OUTPUT_VARIABLE output
   )
+  message(STATUS "${output}")
   if(NOT result EQUAL 0)
     message(FATAL_ERROR "Failed to run build.dart. Status code: ${result}")
   endif()

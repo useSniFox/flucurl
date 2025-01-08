@@ -210,6 +210,7 @@ class Session {
     requests[curl] = data;
 
     curl_multi_add_handle(multi_handle, curl);
+    curl_multi_wakeup(multi_handle);
     return state;
   }
 
@@ -327,15 +328,12 @@ auto flucurl_session_init(Config config) -> void * {
         }
       }
 
-      if (session->running_handles > 0) {
-        mc = curl_multi_poll(session->multi_handle, nullptr, 0, 1000, nullptr);
-        if (mc != CURLM_OK) {
-          std::cerr << "curl_multi_poll error: " << curl_multi_strerror(mc)
-                    << std::endl;
-          break;
-        }
+      mc = curl_multi_poll(session->multi_handle, nullptr, 0, 1000, nullptr);
+      if (mc != CURLM_OK) {
+        std::cerr << "curl_multi_poll error: " << curl_multi_strerror(mc)
+                  << std::endl;
+        break;
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     } while (!session->should_exit);
   });
   return session;

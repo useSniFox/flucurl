@@ -45,48 +45,6 @@ class FlucurlBindings {
   late final _flucurl_global_deinit =
       _flucurl_global_deinitPtr.asFunction<void Function()>();
 
-  void flucurl_unlock_upload(
-    UploadState arg0,
-  ) {
-    return _flucurl_unlock_upload(
-      arg0,
-    );
-  }
-
-  late final _flucurl_unlock_uploadPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(UploadState)>>(
-          'flucurl_unlock_upload');
-  late final _flucurl_unlock_upload =
-      _flucurl_unlock_uploadPtr.asFunction<void Function(UploadState)>();
-
-  void flucurl_lock_upload(
-    UploadState arg0,
-  ) {
-    return _flucurl_lock_upload(
-      arg0,
-    );
-  }
-
-  late final _flucurl_lock_uploadPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(UploadState)>>(
-          'flucurl_lock_upload');
-  late final _flucurl_lock_upload =
-      _flucurl_lock_uploadPtr.asFunction<void Function(UploadState)>();
-
-  void flucurl_resume_upload(
-    UploadState arg0,
-  ) {
-    return _flucurl_resume_upload(
-      arg0,
-    );
-  }
-
-  late final _flucurl_resume_uploadPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(UploadState)>>(
-          'flucurl_resume_upload');
-  late final _flucurl_resume_upload =
-      _flucurl_resume_uploadPtr.asFunction<void Function(UploadState)>();
-
   void flucurl_upload_append(
     UploadState arg0,
     Field arg1,
@@ -319,7 +277,7 @@ final class UploadState extends ffi.Struct {
 
   external ffi.Pointer<ffi.Void> mtx;
 
-  @ffi.Size()
+  @ffi.UnsignedLongLong()
   external int cur;
 }
 
