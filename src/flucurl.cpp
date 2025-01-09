@@ -24,36 +24,16 @@
 
 class Session;
 using namespace std::chrono;
-class HTTPMemoryManager {
+class MemoryManager {
+  std::pmr::synchronized_pool_resource pool;
+  std::pmr::polymorphic_allocator<char> resource;
+
  public:
-  HTTPMemoryManager()
-      : headerPool(&headerUpstream),
-        bodyPool(&bodyUpstream),
-        headerResource(&headerPool),
-        bodyResource(&bodyPool) {}
-
-  void *allocateHeader(size_t size) { return headerResource.allocate(size); }
-
-  void deallocateHeader(char *ptr, size_t size) {
-    headerResource.deallocate(ptr, size);
+  MemoryManager() : resource(&pool) {}
+  void *allocate(size_t size) { return resource.allocate(size); }
+  void deallocate(void *p, size_t size) {
+    resource.deallocate(static_cast<char *>(p), size);
   }
-
-  void *allocateBody(size_t size) { return bodyResource.allocate(size); }
-
-  void deallocateBody(char *ptr, size_t size) {
-    bodyResource.deallocate(ptr, size);
-  }
-  ~HTTPMemoryManager() {}
-
- private:
-  // Upstream resources to handle overflow
-  std::pmr::unsynchronized_pool_resource headerUpstream;
-  std::pmr::unsynchronized_pool_resource bodyUpstream;
-
-  std::pmr::unsynchronized_pool_resource headerPool;
-  std::pmr::unsynchronized_pool_resource bodyPool;
-  std::pmr::polymorphic_allocator<char> headerResource;
-  std::pmr::polymorphic_allocator<char> bodyResource;
 };
 
 uint32_t rng(uint32_t min, uint32_t max) {
@@ -187,9 +167,9 @@ class Session {
 
  public:
   ObjectPool<UploadState> upload_state_pool;
-  HTTPMemoryManager memory_manager;
+  MemoryManager header_manager, body_manager;
   std::unordered_map<CURL *, TaskData *> requests;
-  std::mutex request_mtx, handle_mtx;
+  std::mutex mtx;
   CURLM *multi_handle = nullptr;
   CURLSH *share_handle = nullptr;
   std::vector<CURL *> handles;
@@ -219,9 +199,10 @@ class Session {
     state->session = this;
     task->upload_state = state;
 
-    std::unique_lock<std::mutex> lk{request_mtx};
+    std::unique_lock<std::mutex> lk{mtx};
     CURL *curl = acquire_handle();
     if (curl == nullptr) {
+      task_queue.push(task);
       return state;
     }
 
@@ -230,7 +211,7 @@ class Session {
   }
 
   void remove_request(CURL *curl) {
-    std::unique_lock<std::mutex> lk{request_mtx};
+    std::unique_lock<std::mutex> lk{mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       auto mtx = static_cast<std::mutex *>(it->second->upload_state->mtx);
@@ -251,7 +232,7 @@ class Session {
   ~Session() {}
 
   void report_done(CURL *curl) {
-    std::unique_lock<std::mutex> lk{request_mtx};
+    std::unique_lock<std::mutex> lk{mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onData({nullptr, 0, this});
@@ -259,7 +240,7 @@ class Session {
   }
 
   void report_error(CURL *curl, const char *message) {
-    std::unique_lock<std::mutex> lk{request_mtx};
+    std::unique_lock<std::mutex> lk{mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onError(message);
@@ -400,13 +381,13 @@ void flucurl_free_reponse(Response response) {
   auto session = static_cast<Session *>(response.session);
   for (int i = 0; i < response.header_count; i++) {
     auto header = response.headers[i];
-    session->memory_manager.deallocateHeader(header.p, header.len);
+    session->header_manager.deallocate(header.p, header.len);
   }
   delete[] response.headers;
 }
 void flucurl_free_bodydata(BodyData body_data) {
   auto *session = static_cast<Session *>(body_data.session);
-  session->memory_manager.deallocateBody(body_data.data, body_data.size);
+  session->body_manager.deallocate(body_data.data, body_data.size);
 }
 
 void flucurl_unlock_upload(UploadState s) {
@@ -472,7 +453,7 @@ size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   }
   size_t total_size = size * nmemb;
   auto *body_ptr = static_cast<char *>(ptr);
-  auto *data = cb_data->session->memory_manager.allocateBody(total_size);
+  auto *data = cb_data->session->body_manager.allocate(total_size);
   std::copy(body_ptr, body_ptr + total_size, static_cast<char *>(data));
 
   BodyData body_data;
@@ -514,8 +495,7 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
     return total_size;
   }
 
-  void *data =
-      header_data->session->memory_manager.allocateHeader(total_size - 2);
+  void *data = header_data->session->header_manager.allocate(total_size - 2);
   char *header_kv = static_cast<char *>(data);
 
   // strip the trailing "\r\n"
