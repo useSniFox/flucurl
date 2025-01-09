@@ -14,7 +14,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  // This widget is the root of your application.
+  var result = '';
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -30,6 +31,11 @@ class _MyAppState extends State<MyApp> {
           body: Center(
             child: Column(
               children: [
+                Text(
+                  "Single Threaded Benchmark",
+                  style: TextStyle(fontSize: 20),
+                ),
+                const SizedBox(height: 8),
                 FilledButton(
                   onPressed: testFlucurl,
                   child: Text("Test Flucurl"),
@@ -39,6 +45,23 @@ class _MyAppState extends State<MyApp> {
                   onPressed: testDio,
                   child: Text("Test Dio"),
                 ),
+                const SizedBox(height: 20),
+                Text(
+                  "Multi Threaded Benchmark",
+                  style: TextStyle(fontSize: 20),
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: testFlucurlMultiThreaded,
+                  child: Text("Test Flucurl"),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: testDioMultiThreaded,
+                  child: Text("Test Dio"),
+                ),
+                const SizedBox(height: 20),
+                Text(result),
               ],
             ),
           )),
@@ -46,7 +69,9 @@ class _MyAppState extends State<MyApp> {
   }
 
   void testFlucurl() async {
-    print("Testing Flucurl");
+    setState(() {
+      result = "Testing Flucurl";
+    });
     var dio = FlucurlDio(
       baseOptions: BaseOptions(validateStatus: (i) => true),
     );
@@ -55,7 +80,9 @@ class _MyAppState extends State<MyApp> {
   }
 
   void testDio() async {
-    print("Testing Dio");
+    setState(() {
+      result = "Testing Dio";
+    });
     var dio = Dio(BaseOptions(validateStatus: (i) => true));
     await testBase(dio);
     dio.close();
@@ -67,14 +94,63 @@ class _MyAppState extends State<MyApp> {
     for (var i = 0; i < 10000; i++) {
       await dio.get("$url/size/1");
     }
-    print("Small Files Time: ${stopwatch.elapsedMilliseconds}");
+    setState(() {
+      result += "\nSmall Files Time: ${stopwatch.elapsedMilliseconds}";
+    });
     stopwatch.stop();
     stopwatch.reset();
     stopwatch.start();
     for (var i = 0; i < 100; i++) {
       await dio.get("$url/size/10000");
     }
-    print("Large Files Time: ${stopwatch.elapsedMilliseconds}");
+    setState(() {
+      result += "\nBig Files Time: ${stopwatch.elapsedMilliseconds}";
+    });
     stopwatch.stop();
+  }
+
+  Future<void> multiThreadedBase(Dio dio) async {
+    var url = "http://localhost:8080";
+    var stopwatch = Stopwatch()..start();
+    var futures = <Future>[];
+    for (var i = 0; i < 10000; i++) {
+      futures.add(dio.get("$url/size/1"));
+    }
+    await Future.wait(futures);
+    setState(() {
+      result += "\nSmall Files Time: ${stopwatch.elapsedMilliseconds}";
+    });
+    stopwatch.stop();
+    stopwatch.reset();
+    stopwatch.start();
+    futures = <Future>[];
+    for (var i = 0; i < 100; i++) {
+      futures.add(dio.get("$url/size/10000"));
+    }
+    await Future.wait(futures);
+    setState(() {
+      result += "\nBig Files Time: ${stopwatch.elapsedMilliseconds}";
+    });
+    stopwatch.stop();
+  }
+
+  Future<void> testFlucurlMultiThreaded() async {
+    setState(() {
+      result = "Testing Flucurl";
+    });
+    var dio = FlucurlDio(
+      baseOptions: BaseOptions(validateStatus: (i) => true),
+    );
+    await multiThreadedBase(dio);
+    dio.close();
+  }
+
+  Future<void> testDioMultiThreaded() async {
+    setState(() {
+      result = "Testing Dio";
+    });
+    var dio = Dio(BaseOptions(validateStatus: (i) => true));
+    await multiThreadedBase(dio);
+    dio.close();
   }
 }
