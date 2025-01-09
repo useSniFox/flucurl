@@ -36,22 +36,8 @@ class MemoryManager {
   }
 };
 
-uint32_t rng(uint32_t min, uint32_t max) {
-  static std::random_device rd;
-  static auto gen =
-      rd.entropy()
-          ? std::mt19937(rd())
-          : std::mt19937(system_clock::now().time_since_epoch().count());
-  std::uniform_int_distribution<uint32_t> dis(min, max);
-  return dis(gen);
-}
+MemoryManager header_manager, body_manager;
 
-std::string generate_request_id(Request const &r) {
-  std::ostringstream builder{};
-  builder << r.url << '-' << system_clock::now().time_since_epoch().count()
-          << '-' << rng(0, 0xFFFFFFFF);
-  return builder.str();
-}
 struct TaskData {
   std::vector<Field> header_entries = {};
   Request request = {};
@@ -166,7 +152,6 @@ class Session {
  public:
   ObjectPool<BodyData> body_data_pool;
   ObjectPool<UploadState> upload_state_pool;
-  MemoryManager header_manager, body_manager;
   std::unordered_map<CURL *, TaskData *> requests;
   std::mutex mtx;
   CURLM *multi_handle = nullptr;
@@ -388,13 +373,13 @@ void flucurl_free_reponse(Response response) {
   auto session = static_cast<Session *>(response.session);
   for (int i = 0; i < response.header_count; i++) {
     auto header = response.headers[i];
-    session->header_manager.deallocate(header.p, header.len);
+    header_manager.deallocate(header.p, header.len);
   }
   delete[] response.headers;
 }
 void flucurl_free_bodydata(BodyData *body_data) {
   auto *session = static_cast<Session *>(body_data->session);
-  session->body_manager.deallocate(body_data->data, body_data->size);
+  body_manager.deallocate(body_data->data, body_data->size);
   session->body_data_pool.release_item(body_data);
 }
 
@@ -461,7 +446,7 @@ size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   }
   size_t total_size = size * nmemb;
   auto *body_ptr = static_cast<char *>(ptr);
-  auto *data = cb_data->session->body_manager.allocate(total_size);
+  auto *data = body_manager.allocate(total_size);
   std::copy(body_ptr, body_ptr + total_size, static_cast<char *>(data));
 
   BodyData *body_data = cb_data->session->body_data_pool.acquire_item();
@@ -503,7 +488,7 @@ size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
     return total_size;
   }
 
-  void *data = header_data->session->header_manager.allocate(total_size - 2);
+  void *data = header_manager.allocate(total_size - 2);
   char *header_kv = static_cast<char *>(data);
 
   // strip the trailing "\r\n"
