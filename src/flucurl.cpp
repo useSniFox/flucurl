@@ -92,7 +92,7 @@ class ObjectPool {
     *item = {};
     items.push_back(item);
   }
-  ObjectPool(int32_t max_size = 15) : max_size(max_size) {}
+  ObjectPool(int32_t max_size = 50) : max_size(max_size) {}
   ~ObjectPool() {
     for (auto item : items) {
       delete item;
@@ -164,6 +164,7 @@ class Session {
   }
 
  public:
+  ObjectPool<BodyData> body_data_pool;
   ObjectPool<UploadState> upload_state_pool;
   MemoryManager header_manager, body_manager;
   std::unordered_map<CURL *, TaskData *> requests;
@@ -233,7 +234,7 @@ class Session {
     std::unique_lock<std::mutex> lk{mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
-      it->second->onData({nullptr, 0, this});
+      it->second->onData(nullptr);
     }
   }
 
@@ -394,6 +395,7 @@ void flucurl_free_reponse(Response response) {
 void flucurl_free_bodydata(BodyData *body_data) {
   auto *session = static_cast<Session *>(body_data->session);
   session->body_manager.deallocate(body_data->data, body_data->size);
+  session->body_data_pool.release_item(body_data);
 }
 
 void flucurl_unlock_upload(UploadState s) {
@@ -462,10 +464,10 @@ size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   auto *data = cb_data->session->body_manager.allocate(total_size);
   std::copy(body_ptr, body_ptr + total_size, static_cast<char *>(data));
 
-  BodyData body_data;
-  body_data.session = cb_data->session;
-  body_data.data = static_cast<char *>(data);
-  body_data.size = total_size;
+  BodyData *body_data = cb_data->session->body_data_pool.acquire_item();
+  body_data->session = cb_data->session;
+  body_data->data = static_cast<char *>(data);
+  body_data->size = total_size;
   cb_data->onData(body_data);
   return total_size;
 }

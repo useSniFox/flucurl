@@ -90,7 +90,7 @@ typedef struct UploadState {
 
 typedef void (*ResponseCallback)(Response);
 
-typedef void (*DataHandler)(BodyData);
+typedef void (*DataHandler)(BodyData *);
 
 typedef void (*ErrorHandler)(const char *message);
 
