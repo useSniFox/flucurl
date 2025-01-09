@@ -33,11 +33,16 @@ class FlucurlClient {
       request.headers['Content-Length'] ??= data.length.toString();
       return request.copyWith(body: Stream.value(Uint8List.fromList(data)));
     } else if (request.body is List<int>) {
-      request.headers['Content-Length'] ??= (request.body as List<int>).length.toString();
-      return request.copyWith(body: Stream.value(Uint8List.fromList(request.body as List<int>)));
-    } else if (request.body is Stream<List<int>> || request.body is Stream<Uint8List>) {
-      if (request.headers['Content-Length'] == null || request.headers['content-length'] == null) {
-        throw ArgumentError('Content-Length must be provided for Stream<List<int>>');
+      request.headers['Content-Length'] ??=
+          (request.body as List<int>).length.toString();
+      return request.copyWith(
+          body: Stream.value(Uint8List.fromList(request.body as List<int>)));
+    } else if (request.body is Stream<List<int>> ||
+        request.body is Stream<Uint8List>) {
+      if (request.headers['Content-Length'] == null ||
+          request.headers['content-length'] == null) {
+        throw ArgumentError(
+            'Content-Length must be provided for Stream<List<int>>');
       }
       return request;
     } else if (request.body is Map || request.body is List) {
@@ -98,17 +103,13 @@ class FlucurlClient {
       ));
     }
 
-    void onData(generated.BodyData data) {
-      try {
-        if (data.data == ffi.nullptr) {
-          bodySink.close();
-          clear();
-          return;
-        }
-        bodySink.add(Uint8List.fromList(data.data.cast<ffi.Uint8>().asTypedList(data.size)));
-      } finally {
-        bindings.flucurl_free_bodydata(data);
+    void onData(ffi.Pointer<generated.BodyData> data) {
+      if (data == ffi.nullptr) {
+        bodySink.close();
+        clear();
+        return;
       }
+      bodySink.add(data.ref.data.cast<ffi.Uint8>().asTypedList(data.ref.size, finalizer: freeBodyData.cast(), token: data.cast()));
     }
 
     void onError(ffi.Pointer<ffi.Char> error) {
@@ -131,7 +132,7 @@ class FlucurlClient {
 
     nativeFunctions.addAll(
         [nativeResponseCallback, nativeDataHandler, nativeErrorHandler]);
-        
+
     var state = bindings.flucurl_session_send_request(
       session,
       req.nativeRequest.ref,
@@ -152,11 +153,14 @@ class FlucurlClient {
       assert(d is List<int>);
       var data = d as List<int>;
       int readIndex = 0;
-      while(readIndex != data.length) {
+      while (readIndex != data.length) {
         var bufferAvailable = bufferSize - writeIndex;
         var dataAvailable = data.length - readIndex;
-        var toWrite = bufferAvailable < dataAvailable ? bufferAvailable : dataAvailable;
-        (buffer+writeIndex).asTypedList(toWrite).setAll(0, data.getRange(readIndex, readIndex+toWrite));
+        var toWrite =
+            bufferAvailable < dataAvailable ? bufferAvailable : dataAvailable;
+        (buffer + writeIndex)
+            .asTypedList(toWrite)
+            .setAll(0, data.getRange(readIndex, readIndex + toWrite));
         writeIndex += toWrite;
         readIndex += toWrite;
         if (writeIndex == bufferSize) {

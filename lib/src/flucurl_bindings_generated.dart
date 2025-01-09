@@ -76,18 +76,18 @@ class FlucurlBindings {
       _flucurl_free_reponsePtr.asFunction<void Function(Response)>();
 
   void flucurl_free_bodydata(
-    BodyData body_data,
+    ffi.Pointer<BodyData> arg0,
   ) {
     return _flucurl_free_bodydata(
-      body_data,
+      arg0,
     );
   }
 
   late final _flucurl_free_bodydataPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(BodyData)>>(
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<BodyData>)>>(
           'flucurl_free_bodydata');
-  late final _flucurl_free_bodydata =
-      _flucurl_free_bodydataPtr.asFunction<void Function(BodyData)>();
+  late final _flucurl_free_bodydata = _flucurl_free_bodydataPtr
+      .asFunction<void Function(ffi.Pointer<BodyData>)>();
 
   ffi.Pointer<ffi.Void> flucurl_session_init(
     Config config,
@@ -286,8 +286,8 @@ typedef ResponseCallback
 typedef ResponseCallbackFunction = ffi.Void Function(Response);
 typedef DartResponseCallbackFunction = void Function(Response);
 typedef DataHandler = ffi.Pointer<ffi.NativeFunction<DataHandlerFunction>>;
-typedef DataHandlerFunction = ffi.Void Function(BodyData);
-typedef DartDataHandlerFunction = void Function(BodyData);
+typedef DataHandlerFunction = ffi.Void Function(ffi.Pointer<BodyData>);
+typedef DartDataHandlerFunction = void Function(ffi.Pointer<BodyData>);
 typedef ErrorHandler = ffi.Pointer<ffi.NativeFunction<ErrorHandlerFunction>>;
 typedef ErrorHandlerFunction = ffi.Void Function(ffi.Pointer<ffi.Char> message);
 typedef DartErrorHandlerFunction = void Function(ffi.Pointer<ffi.Char> message);

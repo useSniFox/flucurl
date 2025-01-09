@@ -21,3 +21,6 @@ final DynamicLibrary _dylib = () {
 
 /// The bindings to the native functions in [_dylib].
 final FlucurlBindings bindings = FlucurlBindings(_dylib);
+
+final freeBodyData = _dylib.lookup<NativeFunction<Void Function(Pointer<BodyData>)>>(
+          'flucurl_free_bodydata');
