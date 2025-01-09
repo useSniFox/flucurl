@@ -100,7 +100,7 @@ FFI_PLUGIN_EXPORT void flucurl_global_deinit();
 FFI_PLUGIN_EXPORT void flucurl_upload_append(UploadState, Field);
 
 FFI_PLUGIN_EXPORT void flucurl_free_reponse(Response);
-FFI_PLUGIN_EXPORT void flucurl_free_bodydata(BodyData body_data);
+FFI_PLUGIN_EXPORT void flucurl_free_bodydata(BodyData *);
 
 FFI_PLUGIN_EXPORT void *flucurl_session_init(Config config);
 FFI_PLUGIN_EXPORT void flucurl_session_terminate(void *session);

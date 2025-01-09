@@ -109,6 +109,7 @@ class Session {
       return curl;
     }
     if (total_handle < 50) {
+      total_handle++;
       CURL *curl = curl_easy_duphandle(handle_prototype);
       curl_easy_setopt(curl, CURLOPT_SHARE, share_handle);
       return curl;
@@ -131,16 +132,13 @@ class Session {
   void perform_request(CURL *curl, TaskData *task) {
     UploadState *state = task->upload_state;
     Request request = task->request;
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
     curl_easy_setopt(curl, CURLOPT_READDATA, state);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, request.content_length);
 
     // set header receive callback
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, task);
 
     // set body receive callback
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, task);
 
     // set http method
@@ -254,8 +252,16 @@ auto flucurl_session_init(Config config) -> void * {
   CURL *curl = curl_easy_init();
   // set default ssl support
   curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-  curl_easy_setopt(curl, CURLOPT_SSLENGINE, "dynamic");
   curl_easy_setopt(curl, CURLOPT_SSLENGINE_DEFAULT, 1l);
+
+  curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
+
+  curl_easy_setopt(curl, CURLOPT_MAXCONNECTS, 10L);
+
+  curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+
   switch (config.http_version) {
     case HTTP1_0:
       curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
@@ -385,9 +391,9 @@ void flucurl_free_reponse(Response response) {
   }
   delete[] response.headers;
 }
-void flucurl_free_bodydata(BodyData body_data) {
-  auto *session = static_cast<Session *>(body_data.session);
-  session->body_manager.deallocate(body_data.data, body_data.size);
+void flucurl_free_bodydata(BodyData *body_data) {
+  auto *session = static_cast<Session *>(body_data->session);
+  session->body_manager.deallocate(body_data->data, body_data->size);
 }
 
 void flucurl_unlock_upload(UploadState s) {

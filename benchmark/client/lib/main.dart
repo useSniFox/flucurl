@@ -64,7 +64,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> testBase(Dio dio) async {
     var url = "http://localhost:8080";
     var stopwatch = Stopwatch()..start();
-    for (var i = 0; i < 1000; i++) {
+    for (var i = 0; i < 10000; i++) {
       await dio.get("$url/size/1");
     }
     print("Small Files Time: ${stopwatch.elapsedMilliseconds}");
