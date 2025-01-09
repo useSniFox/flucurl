@@ -23,14 +23,36 @@ void main(List<String> args) async {
     buildDir.deleteSync(recursive: true);
   }
   if (platform == "windows") {
-    findVcpkg();
-    var result = Process.runSync(cmakeRoot, ["--preset=default", "-DCMAKE_CXX_COMPILER=$compiler", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_PROGRAMS=OFF", "-G", generator]);
+    var curlDir = Directory('curl-x86_64');
+    if (curlDir.existsSync()) {
+      curlDir.deleteSync(recursive: true);
+    }
+    var curlFile = File('curl.zip');
+    if (curlFile.existsSync()) {
+      const sha256Result = "20E2A3BF63B9666F2D850350B24D455B533DCF42F472E36564900FFCBA6FD6C2";
+      final bytes = await curlFile.readAsBytes();
+      final hash = sha256.convert(bytes).toString().toUpperCase();
+      if (hash != sha256Result) {
+        curlFile.deleteSync();
+      } else {
+        stdout.writeln('curl $curlVersion already downloaded');
+      }
+    }
+    if (!curlFile.existsSync()) {
+      stdout.writeln('Downloading curl $curlVersion...');
+      final url = "https://github.com/useSniFox/flucurl/releases/download/v0.0.1/curl_windows_msvc_8.11.1_dev.zip";
+      await Dio().download(url, 'curl.zip');
+    }
+    await extractFileToDisk(curlFile.path, 'curl-x86_64');
+    buildDir.createSync();
+    Directory.current = 'build';
+    var result = Process.runSync(cmakeRoot, ["-DCMAKE_CXX_COMPILER=$compiler", "-DCMAKE_BUILD_TYPE=Release", "-G", generator, ".."]);
     stdout.writeln(result.stdout);
     if (result.exitCode != 0) {
       stderr.writeln(result.stderr);
       exit(result.exitCode);
     }
-    result = Process.runSync(cmakeRoot, ["--build", "build", "--config Release"]);
+    result = Process.runSync(cmakeRoot, ["--build", ".", "--config Release"]);
     stdout.writeln(result.stdout);
     if (result.exitCode != 0) {
       stderr.writeln(result.stderr);
@@ -105,71 +127,6 @@ void main(List<String> args) async {
   } else {
     throw 'Unsupported platform: $platform';
   }
-}
-
-void findVcpkg() {
-  var vcpkgRoot = Platform.environment['VCPKG_ROOT'];
-  if (vcpkgRoot == null) {
-    var paths = Platform.environment['PATH']!.split(platform == 'windows' ? ';' : ':');
-    for (var path in paths) {
-      var vcpkgPath = '$path${Platform.pathSeparator}.vcpkg-root';
-      if (File(vcpkgPath).existsSync()) {
-        vcpkgRoot = path;
-        break;
-      }
-    }
-  }
-  if (vcpkgRoot == null) {
-    throw 'VCPKG_ROOT not found';
-  }
-  vcpkgRoot = vcpkgRoot.replaceAll(Platform.pathSeparator, '/');
-  var content = '''
-{
-    "version": 2,
-    "configurePresets": [
-        {
-            "name": "default",
-            "inherits": "vcpkg",
-            "environment": {
-                "VCPKG_ROOT": "$vcpkgRoot"
-            }
-        }
-    ]
-}
-''';
-  File('CMakeUserPresets.json').writeAsStringSync(content);
-  content = '''
-{
-    "version": 2,
-    "configurePresets": [
-        {
-            "name": "vcpkg",
-            "generator": "Ninja",
-            "binaryDir": "\${sourceDir}/build",
-            "cacheVariables": {
-                "CMAKE_TOOLCHAIN_FILE": "\$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-            }
-        }
-    ]
-}
-''';
-  File('CMakePresets.json').writeAsStringSync(content);
-  content = '''
-{
-  "dependencies": [
-    {
-      "name": "curl",
-      "features": [
-        "openssl",
-        "http2",
-        "brotli",
-        "websockets"
-      ]
-    }
-  ]
-}
-''';
-  File('vcpkg.json').writeAsStringSync(content);
 }
 
 extension FileExt on FileSystemEntity {

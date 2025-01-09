@@ -43,7 +43,7 @@ if (ANDROID)
   endif()
 endif()
 
-if (LINUX) 
+if (LINUX OR WIN32) 
   set(CURL_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/curl-x86_64/lib")
   set(CURL_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/curl-x86_64/include")
   include_directories(${CURL_INCLUDE_DIR})
@@ -57,9 +57,6 @@ elseif (ANDROID)
   include_directories(${CURL_INCLUDE_DIR})
 endif()
 
-if (WIN32)
-  find_package(CURL REQUIRED)
-endif()
 add_library(flucurl SHARED
   "flucurl.cpp"
 )
@@ -72,11 +69,14 @@ set_target_properties(flucurl PROPERTIES
 target_compile_definitions(flucurl PUBLIC DART_SHARED_LIB)
 
 if (WIN32)
-  target_link_libraries(flucurl PRIVATE CURL::libcurl)
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+  file(GLOB CURL_LIBS "${CURL_LIB_DIR}/*.lib")
+  set(CURL_LIBS ${CURL_LIBS} ws2_32.lib Crypt32.lib)
 elseif (LINUX OR ANDROID)
   file(GLOB CURL_LIBS "${CURL_LIB_DIR}/*.a")
-  target_link_libraries(flucurl PRIVATE ${CURL_LIBS})
 endif()
+target_link_libraries(flucurl PRIVATE ${CURL_LIBS})
 
 if (ANDROID)
   # Support Android 15 16k page size
