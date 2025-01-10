@@ -53,6 +53,8 @@ size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 
+void *session_worker_func(Session *session);
+
 template <typename T>
 class ObjectPool {
   std::vector<T *> items;
@@ -298,40 +300,43 @@ auto flucurl_session_init(Config config) -> void * {
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
   session->multi_handle = multi_handle;
 
-  session->worker = std::make_unique<std::thread>([session]() {
-    do {
-      CURLMcode mc =
-          curl_multi_perform(session->multi_handle, &session->running_handles);
-      if (mc != CURLM_OK) {
-        std::cout << "Multi error: " << curl_multi_strerror(mc) << std::endl;
-        std::exit(1);
-      }
-      // Check if there are completed messages
-      CURLMsg *msg;
-      int msgs_left;
-      while ((msg = curl_multi_info_read(session->multi_handle, &msgs_left))) {
-        if (msg->msg == CURLMSG_DONE) {
-          CURL *handle = msg->easy_handle;
-          if (msg->data.result != CURLE_OK) {
-            session->report_error(handle, curl_easy_strerror(msg->data.result));
-          } else {
-            // std::cout << "Request completed successfully." << std::endl;
-            // Handle your data here (e.g., retrieve response)
-            session->report_done(handle);
-          }
-          session->remove_request(handle);
-        }
-      }
-
-      mc = curl_multi_poll(session->multi_handle, nullptr, 0, 1000, nullptr);
-      if (mc != CURLM_OK) {
-        std::cerr << "curl_multi_poll error: " << curl_multi_strerror(mc)
-                  << std::endl;
-        break;
-      }
-    } while (!session->should_exit);
-  });
+  session->worker = std::make_unique<std::thread>(
+      [session]() { session_worker_func(session); });
   return session;
+}
+
+void *session_worker_func(Session *session) {
+  do {
+    CURLMcode mc =
+        curl_multi_perform(session->multi_handle, &session->running_handles);
+    if (mc != CURLM_OK) {
+      std::cout << "Multi error: " << curl_multi_strerror(mc) << std::endl;
+      std::exit(1);
+    }
+    // Check if there are completed messages
+    CURLMsg *msg;
+    int msgs_left;
+    while ((msg = curl_multi_info_read(session->multi_handle, &msgs_left))) {
+      if (msg->msg == CURLMSG_DONE) {
+        CURL *handle = msg->easy_handle;
+        if (msg->data.result != CURLE_OK) {
+          session->report_error(handle, curl_easy_strerror(msg->data.result));
+        } else {
+          // std::cout << "Request completed successfully." << std::endl;
+          // Handle your data here (e.g., retrieve response)
+          session->report_done(handle);
+        }
+        session->remove_request(handle);
+      }
+    }
+
+    mc = curl_multi_poll(session->multi_handle, nullptr, 0, 1000, nullptr);
+    if (mc != CURLM_OK) {
+      std::cerr << "curl_multi_poll error: " << curl_multi_strerror(mc)
+                << std::endl;
+      break;
+    }
+  } while (!session->should_exit);
 }
 
 // You should only call this function when you ensure all requests has
