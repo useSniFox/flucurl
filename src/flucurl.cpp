@@ -88,6 +88,8 @@ class ObjectPool {
   }
 };
 
+ObjectPool<BodyData> body_data_pool;
+
 class Session {
   // you should lock outside
   CURL *acquire_handle() {
@@ -117,6 +119,9 @@ class Session {
     perform_request(curl, task);
   }
   ObjectPool<TaskData> request_task_pool;
+  ObjectPool<UploadState> upload_state_pool;
+
+  // you should lock outside
   void perform_request(CURL *curl, TaskData *task) {
     UploadState *state = task->upload_state;
     Request request = task->request;
@@ -144,7 +149,6 @@ class Session {
       task->onError("Unable to set URL");
       return;
     }
-
     requests[curl] = task;
 
     curl_multi_add_handle(multi_handle, curl);
@@ -152,8 +156,6 @@ class Session {
   }
 
  public:
-  ObjectPool<BodyData> body_data_pool;
-  ObjectPool<UploadState> upload_state_pool;
   std::unordered_map<CURL *, TaskData *> requests;
   std::mutex mtx;
   CURLM *multi_handle = nullptr;
@@ -344,6 +346,7 @@ void *session_worker_func(Session *session) {
 auto flucurl_session_terminate(void *p) -> void {
   auto *session = static_cast<Session *>(p);
   session->should_exit = true;
+  curl_multi_wakeup(session->multi_handle);
   session->worker->join();
   session->worker = nullptr;
   curl_multi_cleanup(session->multi_handle);
@@ -385,7 +388,7 @@ void flucurl_free_reponse(Response response) {
 void flucurl_free_bodydata(BodyData *body_data) {
   auto *session = static_cast<Session *>(body_data->session);
   body_manager.deallocate(body_data->data, body_data->size);
-  session->body_data_pool.release_item(body_data);
+  body_data_pool.release_item(body_data);
 }
 
 void flucurl_unlock_upload(UploadState s) {
@@ -454,7 +457,7 @@ size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
   auto *data = body_manager.allocate(total_size);
   std::copy(body_ptr, body_ptr + total_size, static_cast<char *>(data));
 
-  BodyData *body_data = cb_data->session->body_data_pool.acquire_item();
+  BodyData *body_data = body_data_pool.acquire_item();
   body_data->session = cb_data->session;
   body_data->data = static_cast<char *>(data);
   body_data->size = total_size;
