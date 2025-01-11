@@ -53,7 +53,7 @@ size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 size_t header_callback(void *ptr, size_t size, size_t nmemb, void *userdata);
 
-void *session_worker_func(Session *session);
+void session_worker_func(Session *session);
 
 template <typename T>
 class ObjectPool {
@@ -242,6 +242,7 @@ auto flucurl_session_init(Config config) -> void * {
   CURL *curl = curl_easy_init();
   // set default ssl support
   curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+  curl_easy_setopt(curl, CURLOPT_SSLENGINE, "dynamic");
   curl_easy_setopt(curl, CURLOPT_SSLENGINE_DEFAULT, 1l);
 
   curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
@@ -307,7 +308,7 @@ auto flucurl_session_init(Config config) -> void * {
   return session;
 }
 
-void *session_worker_func(Session *session) {
+void session_worker_func(Session *session) {
   do {
     CURLMcode mc =
         curl_multi_perform(session->multi_handle, &session->running_handles);
