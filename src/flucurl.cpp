@@ -91,6 +91,8 @@ class ObjectPool {
 ObjectPool<BodyData> body_data_pool;
 
 class Session {
+ public:
+  // only call this in worker thread
   // you should lock outside
   CURL *acquire_handle() {
     if (!handles.empty()) {
@@ -107,21 +109,16 @@ class Session {
     return nullptr;
   }
 
+  // only call this in worker thread
   // you should lock outside
   void release_handle(CURL *curl) {
     // when there is too many idle handles
-    if (task_queue.empty()) {
-      handles.push_back(curl);
-      return;
-    }
-    auto task = task_queue.front();
-    task_queue.pop();
-    perform_request(curl, task);
+    handles.push_back(curl);
   }
   ObjectPool<TaskData> request_task_pool;
   ObjectPool<UploadState> upload_state_pool;
 
-  // you should lock outside
+  // only call this in worker thread
   void perform_request(CURL *curl, TaskData *task) {
     UploadState *state = task->upload_state;
     Request request = task->request;
@@ -152,12 +149,10 @@ class Session {
     requests[curl] = task;
 
     curl_multi_add_handle(multi_handle, curl);
-    curl_multi_wakeup(multi_handle);
   }
 
- public:
   std::unordered_map<CURL *, TaskData *> requests;
-  std::mutex mtx;
+  std::mutex task_queue_mtx{};
   CURLM *multi_handle = nullptr;
   CURLSH *share_handle = nullptr;
   std::vector<CURL *> handles;
@@ -187,19 +182,16 @@ class Session {
     state->session = this;
     task->upload_state = state;
 
-    std::unique_lock<std::mutex> lk{mtx};
-    CURL *curl = acquire_handle();
-    if (curl == nullptr) {
+    {
+      std::unique_lock lk{task_queue_mtx};
       task_queue.push(task);
-      return state;
+      curl_multi_wakeup(multi_handle);
     }
-
-    perform_request(curl, task);
     return state;
   }
 
+  // only called by worker thread
   void remove_request(CURL *curl) {
-    std::unique_lock<std::mutex> lk{mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       auto mtx = static_cast<std::mutex *>(it->second->upload_state->mtx);
@@ -219,16 +211,16 @@ class Session {
 
   ~Session() {}
 
+  // only called by worker thread
   void report_done(CURL *curl) {
-    std::unique_lock<std::mutex> lk{mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onData(nullptr);
     }
   }
 
+  // only called by worker thread
   void report_error(CURL *curl, const char *message) {
-    std::unique_lock<std::mutex> lk{mtx};
     auto it = requests.find(curl);
     if (it != requests.end()) {
       it->second->onError(message);
@@ -303,13 +295,24 @@ auto flucurl_session_init(Config config) -> void * {
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
   session->multi_handle = multi_handle;
 
-  session->worker = std::make_unique<std::thread>(
-      [session]() { session_worker_func(session); });
+  session->worker = std::make_unique<std::thread>(session_worker_func, session);
   return session;
 }
 
 void session_worker_func(Session *session) {
   do {
+    {
+      std::unique_lock lk{session->task_queue_mtx};
+      while (!session->task_queue.empty()) {
+        auto task = session->task_queue.front();
+        if (CURL *curl = session->acquire_handle()) {
+          session->task_queue.pop();
+          session->perform_request(curl, task);
+        } else {
+          break;
+        }
+      }
+    }
     CURLMcode mc =
         curl_multi_perform(session->multi_handle, &session->running_handles);
     if (mc != CURLM_OK) {
@@ -325,15 +328,12 @@ void session_worker_func(Session *session) {
         if (msg->data.result != CURLE_OK) {
           session->report_error(handle, curl_easy_strerror(msg->data.result));
         } else {
-          // std::cout << "Request completed successfully." << std::endl;
-          // Handle your data here (e.g., retrieve response)
           session->report_done(handle);
         }
         session->remove_request(handle);
       }
     }
-
-    mc = curl_multi_poll(session->multi_handle, nullptr, 0, 1000, nullptr);
+    mc = curl_multi_poll(session->multi_handle, nullptr, 0, 10, nullptr);
     if (mc != CURLM_OK) {
       std::cerr << "curl_multi_poll error: " << curl_multi_strerror(mc)
                 << std::endl;
