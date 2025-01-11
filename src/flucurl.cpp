@@ -63,7 +63,7 @@ class ObjectPool {
 
  public:
   T *acquire_item() {
-    std::unique_lock<std::mutex> lk;
+    std::unique_lock lk{mtx};
     if (items.empty()) {
       return new T();
     }
@@ -72,7 +72,7 @@ class ObjectPool {
     return item;
   }
   void release_item(T *item) {
-    std::unique_lock<std::mutex> lk;
+    std::unique_lock lk{mtx};
     if (items.size() >= max_size) {
       delete item;
       return;
@@ -82,6 +82,7 @@ class ObjectPool {
   }
   ObjectPool(int32_t max_size = 50) : max_size(max_size) {}
   ~ObjectPool() {
+    std::unique_lock lk{mtx};
     for (auto item : items) {
       delete item;
     }
@@ -89,7 +90,8 @@ class ObjectPool {
 };
 
 ObjectPool<BodyData> body_data_pool;
-
+ObjectPool<TaskData> request_task_pool;
+ObjectPool<UploadState> upload_state_pool;
 class Session {
  public:
   // only call this in worker thread
@@ -115,8 +117,6 @@ class Session {
     // when there is too many idle handles
     handles.push_back(curl);
   }
-  ObjectPool<TaskData> request_task_pool;
-  ObjectPool<UploadState> upload_state_pool;
 
   // only call this in worker thread
   void perform_request(CURL *curl, TaskData *task) {
